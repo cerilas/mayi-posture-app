@@ -212,80 +212,7 @@ struct ModuleStepBar: View {
     }
 }
 
-// MARK: - Module Transition Overlay
-
-/// Full-screen card shown for 2.5 s between assessment modules.
-struct ModuleTransitionOverlay: View {
-    let nextIndex: Int
-    let total: Int
-    let module: AssessmentModule
-
-    @State private var appeared = false
-    private let accent = Color.white // Değiştirildi: Yeşil arkaplanda beyaz daha iyi durur
-
-    var body: some View {
-        ZStack {
-            // Yarı transparan yeşil arkaplan
-            Color.green.opacity(0.70).ignoresSafeArea()
-
-            VStack(spacing: 28) {
-                // Step badge
-                HStack(spacing: 6) {
-                    ForEach(0..<total, id: \.self) { i in
-                        Capsule()
-                            .fill(i == nextIndex ? accent : Color.white.opacity(0.4))
-                            .frame(width: i == nextIndex ? 24 : 8, height: 5)
-                    }
-                }
-
-                // Visual
-                MovementInstructionVisual(moduleID: module.id)
-                    .frame(width: 140, height: 200)
-                    .padding(20)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color.white.opacity(0.1))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                            .shadow(color: .white.opacity(0.2), radius: 20, x: 0, y: 0) // Glow efekti
-                    )
-
-                // Title block
-                VStack(spacing: 8) {
-                    Text("Sıradaki Aşama")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .tracking(2)
-                        .foregroundColor(accent)
-
-                    Text(module.title)
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-
-                    // Instructions preview
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(module.instructions, id: \.self) { instruction in
-                            HStack(alignment: .top, spacing: 10) {
-                                Circle().fill(accent).frame(width: 5, height: 5).padding(.top, 5)
-                                Text(instruction)
-                                    .font(.system(size: 13, weight: .regular, design: .rounded))
-                                    .foregroundColor(.white.opacity(0.6))
-                            }
-                        }
-                    }
-                    .padding(.top, 4)
-                }
-            }
-            .scaleEffect(appeared ? 1 : 0.92)
-            .opacity(appeared ? 1 : 0)
-        }
-        .onAppear {
-            withAnimation(.spring(response: 0.4)) { appeared = true }
-        }
-    }
-}
+// (Eski ModuleTransitionOverlay kaldırıldı, yeni UX'e geçildi)
 
 // MARK: - Assessment View
 
@@ -304,9 +231,13 @@ struct AssessmentView: View {
             // Camera
             CameraPreviewView(session: viewModel.cameraService.session)
                 .ignoresSafeArea()
+                .blur(radius: viewModel.state == .instruction ? 15 : 0)
+                .animation(.easeInOut(duration: 0.4), value: viewModel.state)
 
-            // Pose Skeleton
-            PoseSkeletonOverlay(pose: viewModel.poseDetector.currentPose, moduleID: viewModel.currentModule.id)
+            // Pose Skeleton (Talimat ekranında gizle)
+            if viewModel.state != .instruction {
+                PoseSkeletonOverlay(pose: viewModel.poseDetector.currentPose, moduleID: viewModel.currentModule.id)
+            }
 
             // Vignette
             VStack {
@@ -326,17 +257,10 @@ struct AssessmentView: View {
                 bottomPanel
             }
 
-            // Between-module transition overlay
-            if viewModel.isTransitioning {
-                let nextIdx = viewModel.currentModuleIndex + 1
-                if nextIdx < viewModel.totalModuleCount {
-                    ModuleTransitionOverlay(
-                        nextIndex: nextIdx,
-                        total: viewModel.totalModuleCount,
-                        module: viewModel.protocolModules[nextIdx] // Corrected: Use the next module, not the current one
-                    )
+            // Instruction Overlay (Hazırım Butonu ile)
+            if viewModel.state == .instruction {
+                instructionOverlay
                     .transition(.opacity)
-                }
             }
 
             // Results overlay
@@ -349,7 +273,7 @@ struct AssessmentView: View {
             }
         }
         .ignoresSafeArea()
-        .animation(.easeInOut(duration: 0.35), value: viewModel.isTransitioning)
+        .animation(.easeInOut(duration: 0.35), value: viewModel.state)
         .onAppear {
             viewModel.userId = userId
             viewModel.appointmentCode = appointmentCode
@@ -384,6 +308,20 @@ struct AssessmentView: View {
                 } else {
                     Color.clear.frame(width: 80, height: 4)
                 }
+
+                Spacer()
+
+                // ⏭ Atla Butonu
+                Button(action: {
+                    withAnimation { viewModel.skipCurrentModule() }
+                }) {
+                    Text("Atla")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.white.opacity(0.2)))
+                }
             }
             .padding(.horizontal, 20)
 
@@ -400,43 +338,109 @@ struct AssessmentView: View {
 
     private var bottomPanel: some View {
         VStack(spacing: 16) {
-            if case .positioning = viewModel.state {
-                HStack(spacing: 0) {
-                    Spacer()
-                    VStack(spacing: 6) {
-                        MovementInstructionVisual(moduleID: viewModel.currentModule.id)
-                            .frame(width: 100, height: 140)
-                            // Aşağıdaki kutudan hafif taşmasını sağlayan offset efekti
-                            .offset(y: -10)
-                            .padding(.bottom, -10)
-                        
-                        Text("Bu pozisyonu taklit edin")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.75))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(Color.black.opacity(0.5)))
+            // Sadece instruction'da değilken küçük kutuyu göster
+            if viewModel.state != .instruction {
+                if case .positioning = viewModel.state {
+                    HStack(spacing: 0) {
+                        Spacer()
+                        VStack(spacing: 6) {
+                            MovementInstructionVisual(moduleID: viewModel.currentModule.id)
+                                .frame(width: 100, height: 140)
+                                .offset(y: -10)
+                                .padding(.bottom, -10)
+                            
+                            Text("Bu pozisyonu taklit edin")
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.75))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Color.black.opacity(0.5)))
+                        }
+                        .padding(.trailing, 20)
                     }
-                    .padding(.trailing, 20)
                 }
-            }
 
-            Text(statusMessage)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
+                Text(statusMessage)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
 
-            if case .positioning = viewModel.state {
-                positioningHint
-            } else if case .capturing = viewModel.state {
-                capturingInstructions
-            } else if case .failed(let reason) = viewModel.state {
-                retryButton(reason: reason)
+                if case .positioning = viewModel.state {
+                    positioningHint
+                } else if case .capturing = viewModel.state {
+                    capturingInstructions
+                } else if case .failed(let reason) = viewModel.state {
+                    retryButton(reason: reason)
+                }
             }
         }
         .padding(.horizontal, 28)
         .padding(.bottom, 52)
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Instruction Overlay
+
+    private var instructionOverlay: some View {
+        VStack(spacing: 32) {
+            Spacer()
+            
+            // Görsel
+            MovementInstructionVisual(moduleID: viewModel.currentModule.id)
+                .frame(width: 180, height: 260)
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .fill(Color.black.opacity(0.4))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                        .shadow(color: accent.opacity(0.3), radius: 30, x: 0, y: 0) // Glow
+                )
+            
+            // Başlık ve Talimatlar
+            VStack(spacing: 16) {
+                Text(viewModel.currentModule.title)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(viewModel.currentModule.instructions, id: \.self) { instruction in
+                        HStack(alignment: .top, spacing: 12) {
+                            Circle().fill(accent).frame(width: 6, height: 6).padding(.top, 6)
+                            Text(instruction)
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.85))
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                }
+                .padding(.horizontal, 30)
+            }
+            
+            Spacer()
+            
+            // Hazırım Butonu
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    viewModel.confirmReady()
+                }
+            }) {
+                Text("Hazırım")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(accent)
+                    .cornerRadius(16)
+                    .shadow(color: accent.opacity(0.5), radius: 12, x: 0, y: 6)
+            }
+            .padding(.horizontal, 40)
+            .padding(.bottom, 60)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.3).ignoresSafeArea())
     }
 
     // MARK: - Retry Button
@@ -553,6 +557,7 @@ struct AssessmentView: View {
 
     private var statusMessage: String {
         switch viewModel.state {
+        case .instruction:   return "Talimatlar"
         case .idle:          return "Hazırlanıyor..."
         case .positioning:   return "Pozisyon Alın"
         case .capturing:     return "Ölçülüyor..."

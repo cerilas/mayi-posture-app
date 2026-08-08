@@ -10,8 +10,6 @@ class AssessmentViewModel: ObservableObject {
     @Published var currentModuleIndex: Int = 0
     /// Number of joints currently detected — used to drive UI feedback
     @Published var detectedJointCount: Int = 0
-    /// True while showing the between-module transition card
-    @Published var isTransitioning: Bool = false
     /// Authenticated user info from appointment code lookup
     var userId: String?
     var appointmentCode: String?
@@ -84,8 +82,12 @@ class AssessmentViewModel: ObservableObject {
     func startAssessment() {
         currentModuleIndex = 0
         detectedJointCount = 0
-        state = .positioning
+        state = .instruction
         cameraService.start()
+    }
+    
+    func confirmReady() {
+        state = .positioning
         startPositioningFallback()
     }
     
@@ -164,15 +166,9 @@ class AssessmentViewModel: ObservableObject {
         results.append(result)
         
         if currentModuleIndex < protocolModules.count - 1 {
-            // Show transition overlay, then move to next module
-            isTransitioning = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-                guard let self = self else { return }
-                self.isTransitioning = false
-                self.currentModuleIndex += 1
-                self.state = .positioning
-                self.startPositioningFallback()
-            }
+            // Bir sonraki hareketin talimat ekranına geç
+            self.currentModuleIndex += 1
+            self.state = .instruction
         } else {
             saveAllResults()
             state = .completed(result: result)
@@ -191,14 +187,8 @@ class AssessmentViewModel: ObservableObject {
         results.append(result)
         
         if currentModuleIndex < protocolModules.count - 1 {
-            isTransitioning = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-                guard let self = self else { return }
-                self.isTransitioning = false
-                self.currentModuleIndex += 1
-                self.state = .positioning
-                self.startPositioningFallback()
-            }
+            self.currentModuleIndex += 1
+            self.state = .instruction
         } else {
             saveAllResults()
             state = .completed(result: result)
