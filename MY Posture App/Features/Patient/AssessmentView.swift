@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 // MARK: - Pose Skeleton Overlay
 
@@ -126,128 +127,61 @@ struct PoseSkeletonOverlay: View {
     }
 }
 
-// MARK: - Posture Silhouette
+// MARK: - GIF View (Transparent)
 
-struct PostureSilhouetteView: View {
+struct GIFView: UIViewRepresentable {
+    let dataName: String
+
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.isOpaque = false // Transparan arka plan
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+        webView.scrollView.isScrollEnabled = false
+        webView.isUserInteractionEnabled = false
+
+        if let asset = NSDataAsset(name: dataName) {
+            // GIF verisini doğrudan yükle
+            webView.load(
+                asset.data,
+                mimeType: "image/gif",
+                characterEncodingName: "UTF-8",
+                baseURL: URL(fileURLWithPath: "")
+            )
+        }
+        return webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+}
+
+// MARK: - Movement Instruction Visual
+
+struct MovementInstructionVisual: View {
     let moduleID: String
 
     var body: some View {
-        Canvas { ctx, size in
-            let w = size.width
-            let h = size.height
-            let style = StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-            let white  = GraphicsContext.Shading.color(.white.opacity(0.75))
-            let accent = GraphicsContext.Shading.color(Color(red: 0.31, green: 0.43, blue: 0.97))
-
-            func stroke(_ p: Path, _ s: GraphicsContext.Shading = white) { ctx.stroke(p, with: s, style: style) }
-            func fill(_ p: Path, _ s: GraphicsContext.Shading = white) { ctx.fill(p, with: s) }
-
-            let cx = w / 2
-            let headR: CGFloat = w * 0.09
-            let headY  = h * 0.06
-            let neckY  = headY + headR * 2 + h * 0.01
-            let shY    = neckY + h * 0.06
-            let hipY   = shY + h * 0.20
-            let kneeY  = hipY + h * 0.18
-            let ankleY = kneeY + h * 0.16
-            let sw: CGFloat = w * 0.22
-            let hw: CGFloat = w * 0.12
-
-            // Head
-            fill(Path(ellipseIn: CGRect(x: cx - headR, y: headY, width: headR * 2, height: headR * 2)))
-
-            // Neck
-            var n = Path(); n.move(to: CGPoint(x: cx, y: headY + headR * 2)); n.addLine(to: CGPoint(x: cx, y: shY)); stroke(n)
-
-            // Shoulder bar
-            var sh = Path(); sh.move(to: CGPoint(x: cx - sw, y: shY)); sh.addLine(to: CGPoint(x: cx + sw, y: shY)); stroke(sh)
-
-            // Torso
-            var t = Path(); t.move(to: CGPoint(x: cx, y: shY)); t.addLine(to: CGPoint(x: cx, y: hipY)); stroke(t)
-
-            // Hip bar
-            var hp = Path(); hp.move(to: CGPoint(x: cx - hw, y: hipY)); hp.addLine(to: CGPoint(x: cx + hw, y: hipY)); stroke(hp)
-
+        Group {
             switch moduleID {
-
             case "front_static_posture":
-                var la = Path()
-                la.move(to: CGPoint(x: cx - sw, y: shY))
-                la.addLine(to: CGPoint(x: cx - sw - 4, y: shY + h * 0.09))
-                la.addLine(to: CGPoint(x: cx - sw - 2, y: shY + h * 0.18))
-                stroke(la)
-                var ra = Path()
-                ra.move(to: CGPoint(x: cx + sw, y: shY))
-                ra.addLine(to: CGPoint(x: cx + sw + 4, y: shY + h * 0.09))
-                ra.addLine(to: CGPoint(x: cx + sw + 2, y: shY + h * 0.18))
-                stroke(ra)
-                var ll = Path(); ll.move(to: CGPoint(x: cx - hw, y: hipY)); ll.addLine(to: CGPoint(x: cx - hw, y: ankleY)); stroke(ll)
-                var rl = Path(); rl.move(to: CGPoint(x: cx + hw, y: hipY)); rl.addLine(to: CGPoint(x: cx + hw, y: ankleY)); stroke(rl)
-
+                Image("front_static_posture")
+                    .resizable()
+                    .scaledToFit()
+            case "side_static_posture":
+                Image("side_static_posture")
+                    .resizable()
+                    .scaledToFit()
             case "shoulder_flexion":
-                var la = Path()
-                la.move(to: CGPoint(x: cx - sw, y: shY))
-                la.addLine(to: CGPoint(x: cx - sw + w * 0.02, y: shY - h * 0.08))
-                la.addLine(to: CGPoint(x: cx - sw + w * 0.04, y: shY - h * 0.17))
-                stroke(la, accent)
-                var ra = Path()
-                ra.move(to: CGPoint(x: cx + sw, y: shY))
-                ra.addLine(to: CGPoint(x: cx + sw - w * 0.02, y: shY - h * 0.08))
-                ra.addLine(to: CGPoint(x: cx + sw - w * 0.04, y: shY - h * 0.17))
-                stroke(ra, accent)
-                var ll = Path(); ll.move(to: CGPoint(x: cx - hw, y: hipY)); ll.addLine(to: CGPoint(x: cx - hw, y: ankleY)); stroke(ll)
-                var rl = Path(); rl.move(to: CGPoint(x: cx + hw, y: hipY)); rl.addLine(to: CGPoint(x: cx + hw, y: ankleY)); stroke(rl)
-
+                GIFView(dataName: "shoulder_flexion")
             case "shoulder_abduction":
-                var la = Path()
-                la.move(to: CGPoint(x: cx - sw, y: shY))
-                la.addLine(to: CGPoint(x: cx - sw - w * 0.12, y: shY - h * 0.06))
-                la.addLine(to: CGPoint(x: cx - sw - w * 0.22, y: shY - h * 0.14))
-                stroke(la, accent)
-                var ra = Path()
-                ra.move(to: CGPoint(x: cx + sw, y: shY))
-                ra.addLine(to: CGPoint(x: cx + sw + w * 0.12, y: shY - h * 0.06))
-                ra.addLine(to: CGPoint(x: cx + sw + w * 0.22, y: shY - h * 0.14))
-                stroke(ra, accent)
-                var ll = Path(); ll.move(to: CGPoint(x: cx - hw, y: hipY)); ll.addLine(to: CGPoint(x: cx - hw, y: ankleY)); stroke(ll)
-                var rl = Path(); rl.move(to: CGPoint(x: cx + hw, y: hipY)); rl.addLine(to: CGPoint(x: cx + hw, y: ankleY)); stroke(rl)
-
+                GIFView(dataName: "shoulder_abduction")
             case "squat_5_reps":
-                let sHipY  = hipY + h * 0.06
-                let sKneeY = sHipY + h * 0.10
-                let sAnkleY = sKneeY + h * 0.12
-                var la = Path()
-                la.move(to: CGPoint(x: cx - sw, y: shY + h * 0.04))
-                la.addLine(to: CGPoint(x: cx, y: shY - h * 0.01))
-                stroke(la, accent)
-                var ra = Path()
-                ra.move(to: CGPoint(x: cx + sw, y: shY + h * 0.04))
-                ra.addLine(to: CGPoint(x: cx, y: shY - h * 0.01))
-                stroke(ra, accent)
-                var torsoAdj = Path()
-                torsoAdj.move(to: CGPoint(x: cx, y: shY))
-                torsoAdj.addLine(to: CGPoint(x: cx + w * 0.03, y: sHipY))
-                stroke(torsoAdj)
-                var adjHip = Path()
-                adjHip.move(to: CGPoint(x: cx - hw, y: sHipY))
-                adjHip.addLine(to: CGPoint(x: cx + hw, y: sHipY))
-                stroke(adjHip)
-                var ll = Path()
-                ll.move(to: CGPoint(x: cx - hw, y: sHipY))
-                ll.addLine(to: CGPoint(x: cx - hw - w * 0.04, y: sKneeY))
-                ll.addLine(to: CGPoint(x: cx - hw, y: sAnkleY))
-                stroke(ll)
-                var rl = Path()
-                rl.move(to: CGPoint(x: cx + hw, y: sHipY))
-                rl.addLine(to: CGPoint(x: cx + hw + w * 0.04, y: sKneeY))
-                rl.addLine(to: CGPoint(x: cx + hw, y: sAnkleY))
-                stroke(rl)
-
+                GIFView(dataName: "squat_5_reps")
             default:
-                var la = Path(); la.move(to: CGPoint(x: cx - sw, y: shY)); la.addLine(to: CGPoint(x: cx - sw, y: shY + h * 0.18)); stroke(la)
-                var ra = Path(); ra.move(to: CGPoint(x: cx + sw, y: shY)); ra.addLine(to: CGPoint(x: cx + sw, y: shY + h * 0.18)); stroke(ra)
-                var ll = Path(); ll.move(to: CGPoint(x: cx - hw, y: hipY)); ll.addLine(to: CGPoint(x: cx - hw, y: ankleY)); stroke(ll)
-                var rl = Path(); rl.move(to: CGPoint(x: cx + hw, y: hipY)); rl.addLine(to: CGPoint(x: cx + hw, y: ankleY)); stroke(rl)
+                Image(systemName: "figure.walk")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundColor(.white.opacity(0.5))
             }
         }
     }
@@ -304,17 +238,18 @@ struct ModuleTransitionOverlay: View {
                     }
                 }
 
-                // Silhouette
-                PostureSilhouetteView(moduleID: module.id)
-                    .frame(width: 110, height: 160)
+                // Visual
+                MovementInstructionVisual(moduleID: module.id)
+                    .frame(width: 140, height: 200)
                     .padding(20)
                     .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(Color.white.opacity(0.05))
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color.white.opacity(0.1))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .stroke(accent.opacity(0.3), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
                             )
+                            .shadow(color: .white.opacity(0.2), radius: 20, x: 0, y: 0) // Glow efekti
                     )
 
                 // Title block
@@ -469,20 +404,18 @@ struct AssessmentView: View {
                 HStack(spacing: 0) {
                     Spacer()
                     VStack(spacing: 6) {
-                        PostureSilhouetteView(moduleID: viewModel.currentModule.id)
-                            .frame(width: 90, height: 130)
-                            .padding(14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color.black.opacity(0.45))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                                    )
-                            )
+                        MovementInstructionVisual(moduleID: viewModel.currentModule.id)
+                            .frame(width: 100, height: 140)
+                            // Aşağıdaki kutudan hafif taşmasını sağlayan offset efekti
+                            .offset(y: -10)
+                            .padding(.bottom, -10)
+                        
                         Text("Bu pozisyonu taklit edin")
                             .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.45))
+                            .foregroundColor(.white.opacity(0.75))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Color.black.opacity(0.5)))
                     }
                     .padding(.trailing, 20)
                 }
