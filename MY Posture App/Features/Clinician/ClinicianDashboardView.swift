@@ -27,7 +27,7 @@ struct ClinicianDashboardView: View {
                 }
                 
                 Section(header: Text("Kayıtlı Hastalar")) {
-                    ForEach(filteredPatients) { patient in
+                    ForEach(dataStore.patients) { patient in
                         NavigationLink(destination: PatientDetailView(patient: patient)) {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(patient.fullName)
@@ -39,12 +39,29 @@ struct ClinicianDashboardView: View {
                                 }
                             }
                             .padding(.vertical, 5)
+                            .onAppear {
+                                dataStore.loadMoreIfNeeded(currentPatient: patient)
+                            }
+                        }
+                    }
+                    
+                    if dataStore.isFetching {
+                        HStack {
+                            Spacer()
+                            ProgressView("Yükleniyor...")
+                            Spacer()
                         }
                     }
                 }
             }
             .navigationTitle("Yönetim Paneli")
             .searchable(text: $searchText, prompt: "Hasta Ara")
+            .onChange(of: searchText) { newValue in
+                // Gerçek sunucu araması (Server-side search)
+                // Basit bir debounce simülasyonu için küçük bir bekleme veya doğrudan çağrı yapılabilir.
+                // Şimdilik doğrudan tetikliyoruz.
+                dataStore.fetchPatients(page: 1, search: newValue)
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {}) {
@@ -53,14 +70,6 @@ struct ClinicianDashboardView: View {
                     }
                 }
             }
-        }
-    }
-    
-    var filteredPatients: [PatientEntity] {
-        if searchText.isEmpty {
-            return dataStore.patients
-        } else {
-            return dataStore.patients.filter { $0.fullName.localizedCaseInsensitiveContains(searchText) }
         }
     }
 }

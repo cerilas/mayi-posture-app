@@ -24,6 +24,12 @@ struct ClinicianPatientResponse: Codable {
     let lastSessionDate: String?
 }
 
+struct PaginatedPatientsResponse: Codable {
+    let items: [ClinicianPatientResponse]
+    let page: Int
+    let totalPages: Int
+}
+
 struct PostureSessionPayload: Codable {
     let userId: String
     let appointmentCode: String?
@@ -133,9 +139,22 @@ class PostureAPIService: ObservableObject {
     
     // MARK: - Fetch Patients (Admin Panel)
     
-    /// Gerçek veritabanından hasta listesini çeker.
-    func fetchPatients(pin: String) async throws -> [ClinicianPatientResponse] {
-        let url = URL(string: "\(baseURL)/api/posture/patients")!
+    /// Gerçek veritabanından hasta listesini çeker (sayfalama destekli).
+    func fetchPatients(pin: String, page: Int = 1, search: String = "") async throws -> PaginatedPatientsResponse {
+        var components = URLComponents(string: "\(baseURL)/api/posture/patients")!
+        components.queryItems = [
+            URLQueryItem(name: "page", value: "\(page)"),
+            URLQueryItem(name: "limit", value: "20")
+        ]
+        
+        if !search.isEmpty {
+            components.queryItems?.append(URLQueryItem(name: "search", value: search))
+        }
+        
+        guard let url = components.url else {
+            throw PostureAPIError.invalidResponse
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(pin, forHTTPHeaderField: "x-admin-pin")
@@ -143,7 +162,7 @@ class PostureAPIService: ObservableObject {
 
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
-        return try decoder.decode([ClinicianPatientResponse].self, from: data)
+        return try decoder.decode(PaginatedPatientsResponse.self, from: data)
     }
 
     // MARK: - Helpers
