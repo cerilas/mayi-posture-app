@@ -331,7 +331,7 @@ struct AssessmentView: View {
                 title: viewModel.currentModule.title
             )
         }
-        .padding(.top, 12)
+        .padding(.top, 54)
     }
 
     // MARK: - Bottom Panel
