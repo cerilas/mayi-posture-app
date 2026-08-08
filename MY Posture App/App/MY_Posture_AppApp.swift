@@ -1,11 +1,5 @@
-//
-//  MY_Posture_AppApp.swift
-//  MY Posture App
-//
-//  Created by Deniz on 7.08.2026.
-//
-
 import SwiftUI
+import SwiftData
 
 @main
 struct MY_Posture_AppApp: App {
@@ -13,5 +7,6 @@ struct MY_Posture_AppApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: [PatientEntity.self, SessionEntity.self])
     }
 }
