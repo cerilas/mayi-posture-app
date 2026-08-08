@@ -26,6 +26,16 @@ struct ClinicianDashboardView: View {
                         .tint(.blue)
                 }
                 
+                Section(header: Text("Bilgi & Kaynaklar")) {
+                    NavigationLink(destination: AcademicFoundationView()) {
+                        HStack {
+                            Image(systemName: "books.vertical.fill")
+                                .foregroundColor(.blue)
+                            Text("Akademik Dayanak")
+                        }
+                    }
+                }
+                
                 Section(header: Text("Kayıtlı Hastalar")) {
                     ForEach(dataStore.patients) { patient in
                         NavigationLink(destination: PatientDetailView(patient: patient)) {
