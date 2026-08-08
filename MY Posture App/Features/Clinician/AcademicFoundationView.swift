@@ -18,44 +18,59 @@ struct AcademicFoundationView: View {
                 .padding(.bottom, 8)
                 
                 // Makale 1
-                ArticleCardView(
-                    title: "1. Akıllı Telefon Kamerasıyla Baş-Boyun Postür Analizi",
-                    subtitle: "Universitat Internacional de Catalunya (2023)",
-                    content: "Bilgisayarlı görü tabanlı bir akıllı telefon uygulamasının baş postürü (Craniovertebral Açı - CVA) değerlendirmesindeki test-tekrar test güvenilirliği ICC=0,92 bulunmuş ve altın standart (Kinovea) ile r=0,94 düzeyinde korelasyon göstermiştir. Ölçüm hatası yalnızca 1,83°'dir.\n\nÖnemli Çıkarım: Telefon kamerasından hesaplanan tek bir postür parametresi klinik ön değerlendirmede anlamlı ve objektif veri üretebilir.",
-                    icon: "iphone.smartbatterycase.gen2"
-                )
+                NavigationLink(destination: PDFViewer(assetName: "pdf_article_1", title: "Baş-Boyun Analizi")) {
+                    ArticleCardView(
+                        title: "1. Akıllı Telefon Kamerasıyla Baş-Boyun Postür Analizi",
+                        subtitle: "Universitat Internacional de Catalunya (2023)",
+                        content: "Bilgisayarlı görü tabanlı bir akıllı telefon uygulamasının baş postürü (Craniovertebral Açı - CVA) değerlendirmesindeki test-tekrar test güvenilirliği ICC=0,92 bulunmuş ve altın standart (Kinovea) ile r=0,94 düzeyinde korelasyon göstermiştir. Ölçüm hatası yalnızca 1,83°'dir.\n\nÖnemli Çıkarım: Telefon kamerasından hesaplanan tek bir postür parametresi klinik ön değerlendirmede anlamlı ve objektif veri üretebilir.",
+                        icon: "iphone.smartbatterycase.gen2"
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
                 
                 // Makale 2
-                ArticleCardView(
-                    title: "2. Yapay Zekâ ile Markerless Postür Analizi ve Radyografi",
-                    subtitle: "Seoul Bumin Hospital (2025)",
-                    content: "Yapay zekâ tabanlı (MORA Vu) yazılımın, radyografik (röntgen) ölçümlerle karşılaştırıldığı çalışmada; öne baş postürü ve dijital kalça-diz-ayak bileği açısı ölçümlerinin manuel işaretleme olmadan saniyeler içinde yapılabildiği kanıtlanmıştır. Güvenilirlik ICC=0,84 - 0,90 arasındadır.\n\nÖnemli Çıkarım: Özel kamera olmadan sadece mobil cihazlarla tarama yapılması teknik ve klinik olarak geçerli bir 'Screening Tool' (Tarama Aracı) sunar.",
-                    icon: "camera.viewfinder"
-                )
+                NavigationLink(destination: PDFViewer(assetName: "pdf_article_2", title: "Markerless Postür")) {
+                    ArticleCardView(
+                        title: "2. Yapay Zekâ ile Markerless Postür Analizi ve Radyografi",
+                        subtitle: "Seoul Bumin Hospital (2025)",
+                        content: "Yapay zekâ tabanlı (MORA Vu) yazılımın, radyografik (röntgen) ölçümlerle karşılaştırıldığı çalışmada; öne baş postürü ve dijital kalça-diz-ayak bileği açısı ölçümlerinin manuel işaretleme olmadan saniyeler içinde yapılabildiği kanıtlanmıştır. Güvenilirlik ICC=0,84 - 0,90 arasındadır.\n\nÖnemli Çıkarım: Özel kamera olmadan sadece mobil cihazlarla tarama yapılması teknik ve klinik olarak geçerli bir 'Screening Tool' (Tarama Aracı) sunar.",
+                        icon: "camera.viewfinder"
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
                 
                 // Makale 3
-                ArticleCardView(
-                    title: "3. 2D Kamera ile Fonksiyonel Hareket: Squat Analizi",
-                    subtitle: "University of Virginia (2017)",
-                    content: "2D video analizi ile alt ekstremite (kalça, diz, ayak bileği) kinematik ölçümlerinin 3D laboratuvar sistemleriyle karşılaştırıldığı çalışmada, sagittal (yandan) düzlemde diz açısı için yüksek korelasyon (r=0,86) ve sadece 0,74° fark bulunmuştur.\n\nÖnemli Çıkarım: 3D sistemlerin yüksek maliyetine karşılık, 2D mobil uygulamalar hızlı ve güvenilir bir klinik tarama alternatifidir.",
-                    icon: "figure.walk"
-                )
+                NavigationLink(destination: PDFViewer(assetName: "pdf_article_3", title: "Squat Analizi")) {
+                    ArticleCardView(
+                        title: "3. 2D Kamera ile Fonksiyonel Hareket: Squat Analizi",
+                        subtitle: "University of Virginia (2017)",
+                        content: "2D video analizi ile alt ekstremite (kalça, diz, ayak bileği) kinematik ölçümlerinin 3D laboratuvar sistemleriyle karşılaştırıldığı çalışmada, sagittal (yandan) düzlemde diz açısı için yüksek korelasyon (r=0,86) ve sadece 0,74° fark bulunmuştur.\n\nÖnemli Çıkarım: 3D sistemlerin yüksek maliyetine karşılık, 2D mobil uygulamalar hızlı ve güvenilir bir klinik tarama alternatifidir.",
+                        icon: "figure.walk"
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
                 
                 // Makale 4
-                ArticleCardView(
-                    title: "4. Tek Bir Fotoğraf Statik Postürü Temsil Edebilir mi?",
-                    subtitle: "Universidade Federal do Rio Grande do Sul (2019)",
-                    content: "Fotogrametri ile 30 saniyelik bir süreçte çekilen farklı kareler incelenmiş ve hata payının %5'in altında (ICC > 0,91) olduğu görülmüştür.\n\nÖnemli Çıkarım: Bireyin kameranın önüne geçip doğru pozisyonda saniyeler içinde alınan tek bir görüntüsü (veya en stabil karesi) statik postürü güvenilir şekilde temsil eder.",
-                    icon: "photo.on.rectangle"
-                )
+                NavigationLink(destination: PDFViewer(assetName: "pdf_article_4", title: "Statik Postür")) {
+                    ArticleCardView(
+                        title: "4. Tek Bir Fotoğraf Statik Postürü Temsil Edebilir mi?",
+                        subtitle: "Universidade Federal do Rio Grande do Sul (2019)",
+                        content: "Fotogrametri ile 30 saniyelik bir süreçte çekilen farklı kareler incelenmiş ve hata payının %5'in altında (ICC > 0,91) olduğu görülmüştür.\n\nÖnemli Çıkarım: Bireyin kameranın önüne geçip doğru pozisyonda saniyeler içinde alınan tek bir görüntüsü (veya en stabil karesi) statik postürü güvenilir şekilde temsil eder.",
+                        icon: "photo.on.rectangle"
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
                 
                 // Makale 5
-                ArticleCardView(
-                    title: "5. Uzaktan Eklem Hareket Açıklığı (ROM) Meta-Analizi",
-                    subtitle: "Journal of Shoulder and Elbow Surgery (2026)",
-                    content: "26 farklı araştırmanın incelendiği meta-analizde, akıllı telefon ve yapay zeka tabanlı ölçümlerin referans yöntemlere göre ortalama sadece 2,63° fark yarattığı saptanmıştır. Makine öğrenmesi kullanan sistemlerde ICC=0,92–0,97 gibi mükemmel güvenilirlik sonuçları vardır.\n\nÖnemli Çıkarım: Fiziksel temas olmadan, hastanın dijital yönergelerle uzaktan eklem açılarını ölçmesi, tedavi takibi (trend monitoring) için son derece uygundur.",
-                    icon: "angle"
-                )
+                NavigationLink(destination: PDFViewer(assetName: "pdf_article_5", title: "Eklem Hareket Açıklığı")) {
+                    ArticleCardView(
+                        title: "5. Uzaktan Eklem Hareket Açıklığı (ROM) Meta-Analizi",
+                        subtitle: "Journal of Shoulder and Elbow Surgery (2026)",
+                        content: "26 farklı araştırmanın incelendiği meta-analizde, akıllı telefon ve yapay zeka tabanlı ölçümlerin referans yöntemlere göre ortalama sadece 2,63° fark yarattığı saptanmıştır. Makine öğrenmesi kullanan sistemlerde ICC=0,92–0,97 gibi mükemmel güvenilirlik sonuçları vardır.\n\nÖnemli Çıkarım: Fiziksel temas olmadan, hastanın dijital yönergelerle uzaktan eklem açılarını ölçmesi, tedavi takibi (trend monitoring) için son derece uygundur.",
+                        icon: "angle"
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
                 
                 // Sonuç / Değer Önerisi
                 VStack(alignment: .leading, spacing: 12) {
@@ -115,6 +130,18 @@ struct ArticleCardView: View {
                 .foregroundColor(.primary.opacity(0.8))
                 .lineSpacing(4)
                 .padding(.leading, 38)
+            
+            HStack {
+                Spacer()
+                Label("Makaleyi Oku (PDF)", systemImage: "doc.text.fill")
+                    .font(.caption.bold())
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.blue)
+                    .clipShape(Capsule())
+            }
+            .padding(.top, 4)
         }
         .padding()
         .background(
