@@ -72,6 +72,26 @@ struct AcademicFoundationView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 
+                // Algoritma Bilgilendirme
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "function")
+                            .foregroundColor(.purple)
+                            .font(.title2)
+                        Text("Hesaplama Algoritmaları")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                    }
+                    
+                    Text("Uygulama, Apple'ın yerleşik Vision framework'ünü kullanarak saniyede 30 kare (30fps) hızla eklem noktalarının (landmark) X ve Y koordinatlarını çıkarır.\n\nElde edilen bu koordinatlar üzerinden vektörel trigonometri (Dot Product / Kosinüs Teoremi) kullanılarak 3 noktalı eklem açıları (Örn: Kalça-Diz-Bilek) matematiksel olarak hesaplanır. Klasik gonyometre ölçümlerinde sıkça karşılaşılan insan kaynaklı hizalama hataları (parallax error), yapay zekanın anatomik pikselleri standart ve tutarlı bir biçimde eşleştirmesi sayesinde minimuma iner.")
+                        .font(.subheadline)
+                        .lineSpacing(4)
+                        .padding()
+                        .background(Color.purple.opacity(0.1))
+                        .cornerRadius(12)
+                }
+                .padding(.top, 10)
+                
                 // Sonuç / Değer Önerisi
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
