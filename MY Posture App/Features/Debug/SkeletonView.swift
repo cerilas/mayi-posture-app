@@ -23,7 +23,11 @@ struct SkeletonView: View {
                             path.move(to: denormalize(start.position, in: geometry.size))
                             path.addLine(to: denormalize(end.position, in: geometry.size))
                         }
-                        .stroke(Color.green, lineWidth: 3)
+                        .stroke(
+                            (start.confidence > 0.5 && end.confidence > 0.5) ? Color.cyan.opacity(0.8) : Color.orange.opacity(0.8),
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
+                        )
+                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                     }
                 }
                 
@@ -31,8 +35,13 @@ struct SkeletonView: View {
                 ForEach(BodyJoint.JointName.allCases, id: \.self) { name in
                     if let joint = pose.joint(name) {
                         Circle()
-                            .fill(joint.confidence > 0.5 ? Color.blue : Color.red)
-                            .frame(width: 10, height: 10)
+                            .fill(jointColor(for: joint.confidence))
+                            .frame(width: joint.confidence > 0.5 ? 12 : 8, height: joint.confidence > 0.5 ? 12 : 8)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 1.5)
+                            )
+                            .shadow(color: .black.opacity(0.4), radius: 2)
                             .position(denormalize(joint.position, in: geometry.size))
                     }
                 }
@@ -42,5 +51,11 @@ struct SkeletonView: View {
     
     private func denormalize(_ point: CGPoint, in size: CGSize) -> CGPoint {
         return CGPoint(x: point.x * size.width, y: point.y * size.height)
+    }
+    
+    private func jointColor(for confidence: Float) -> Color {
+        if confidence > 0.8 { return .green }
+        if confidence > 0.4 { return .yellow }
+        return .red
     }
 }

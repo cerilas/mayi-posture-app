@@ -14,53 +14,80 @@ struct DebugPoseView: View {
                 SkeletonView(pose: pose)
             }
             
-            // Metrics Overlay
+            // Metrics HUD Overlay
             VStack {
-                HStack {
-                    VStack(alignment: .leading, spacing: 10) {
-                        MetricRow(label: "Shoulder Level", value: viewModel.shoulderLevel, unit: "°")
-                        MetricRow(label: "Hip Level", value: viewModel.hipLevel, unit: "°")
-                        MetricRow(label: "Left Knee Angle", value: viewModel.leftKneeAngle, unit: "°")
-                        MetricRow(label: "Right Knee Angle", value: viewModel.rightKneeAngle, unit: "°")
+                HStack(alignment: .top) {
+                    // Left Column: Angles & Metrics
+                    VStack(alignment: .leading, spacing: 12) {
+                        HUDMetricRow(label: "Omuz Eğimi", value: viewModel.shoulderLevel, unit: "°", threshold: 3)
+                        HUDMetricRow(label: "Kalça Eğimi", value: viewModel.hipLevel, unit: "°", threshold: 4)
+                        HUDMetricRow(label: "Sol Diz", value: viewModel.leftKneeAngle, unit: "°", threshold: nil)
+                        HUDMetricRow(label: "Sağ Diz", value: viewModel.rightKneeAngle, unit: "°", threshold: nil)
                     }
-                    .padding()
-                    .background(Color.black.opacity(0.6))
-                    .cornerRadius(10)
-                    .foregroundColor(.white)
+                    .padding(16)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(color: .black.opacity(0.15), radius: 10)
                     
                     Spacer()
                     
-                    VStack(alignment: .trailing) {
-                        Text("DEBUG MODE")
-                            .font(.caption)
-                            .bold()
-                            .padding(5)
-                            .background(Color.red)
-                            .cornerRadius(5)
-                        
-                        Text("FPS: \(String(format: "%.1f", 15.0))") // Placeholder
-                            .font(.caption)
-                        
-                        if let pose = viewModel.poseDetector.currentPose {
-                            Text("Pose Conf: \(Int(pose.confidence * 100))%")
-                                .font(.caption)
+                    // Right Column: System Status
+                    VStack(alignment: .trailing, spacing: 10) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(viewModel.currentFPS > 20 ? Color.green : Color.orange)
+                                .frame(width: 8, height: 8)
+                            Text("DEBUG HUD")
+                                .font(.caption.bold())
+                                .foregroundColor(.primary)
                         }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("FPS: \(String(format: "%.1f", viewModel.currentFPS))")
+                                .font(.caption2.monospacedDigit())
+                            
+                            Text("Ort. Güvenilirlik: \(Int(viewModel.averageConfidence * 100))%")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundColor(viewModel.averageConfidence > 0.8 ? .primary : .orange)
+                        }
+                        .padding(12)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
-                    .foregroundColor(.white)
-                    .padding()
                 }
+                .padding()
                 
                 Spacer()
                 
-                // Guidance Message
-                Text(guidanceMessage)
-                    .font(.title2)
-                    .bold()
-                    .padding()
-                    .background(Color.blue.opacity(0.8))
-                    .cornerRadius(15)
-                    .foregroundColor(.white)
-                    .padding(.bottom, 40)
+                // Guidance HUD Bar
+                HStack(spacing: 12) {
+                    Image(systemName: guidanceIcon)
+                        .font(.title2)
+                        .foregroundColor(guidanceColor)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(guidanceMessage)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        if !viewModel.missingJoints.isEmpty && viewModel.missingJoints.first != "İnsan Silüeti Bulunamadı" {
+                            Text("Görünmeyenler: \(viewModel.missingJoints.joined(separator: ", "))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    Spacer()
+                }
+                .padding()
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .shadow(color: guidanceColor.opacity(0.3), radius: 10, y: 5)
+                .padding(.horizontal)
+                .padding(.bottom, 30)
             }
         }
         .onAppear {
@@ -72,34 +99,64 @@ struct DebugPoseView: View {
     }
     
     private var guidanceMessage: String {
-        guard let pose = viewModel.poseDetector.currentPose else {
+        if viewModel.missingJoints.contains("İnsan Silüeti Bulunamadı") {
             return "Kamera aranıyor..."
         }
         
-        let requiredJoints: [BodyJoint.JointName] = [.head, .leftAnkle, .rightAnkle]
-        let visibleJoints = requiredJoints.filter { pose.joint($0) != nil }
-        
-        if visibleJoints.count < requiredJoints.count {
-            return "Lütfen biraz geriye gidin ve tüm vücudunuzun göründüğünden emin olun."
+        if viewModel.missingJoints.isEmpty {
+            return "Pozisyon Mükemmel!"
         } else {
-            return "Pozisyon uygun."
+            return "Lütfen tam olarak kadraja girin."
         }
+    }
+    
+    private var guidanceColor: Color {
+        if viewModel.missingJoints.contains("İnsan Silüeti Bulunamadı") {
+            return .gray
+        }
+        return viewModel.missingJoints.isEmpty ? .green : .orange
+    }
+    
+    private var guidanceIcon: String {
+        if viewModel.missingJoints.contains("İnsan Silüeti Bulunamadı") {
+            return "video.slash.fill"
+        }
+        return viewModel.missingJoints.isEmpty ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"
     }
 }
 
-struct MetricRow: View {
+struct HUDMetricRow: View {
     let label: String
     let value: Double
     let unit: String
+    let threshold: Double? // For dynamic status indication
+    
+    var isWarning: Bool {
+        guard let threshold = threshold else { return false }
+        return abs(value) > threshold
+    }
     
     var body: some View {
         HStack {
-            Text(label + ":")
-            Spacer()
-            Text(String(format: "%.1f", value) + unit)
-                .bold()
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Spacer(minLength: 20)
+            
+            HStack(spacing: 6) {
+                Text(String(format: "%.1f", value) + unit)
+                    .font(.body.monospacedDigit().bold())
+                    .foregroundColor(.primary)
+                
+                if threshold != nil {
+                    Image(systemName: isWarning ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                        .foregroundColor(isWarning ? .orange : .green)
+                        .font(.caption)
+                }
+            }
         }
-        .frame(width: 200)
+        .frame(minWidth: 160)
     }
 }
 
