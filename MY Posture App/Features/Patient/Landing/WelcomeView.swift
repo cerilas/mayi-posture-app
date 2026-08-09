@@ -1,23 +1,30 @@
 import SwiftUI
+import CoreMotion
+import Combine
 
 struct WelcomeView: View {
     var onStart: () -> Void
     var onStaffLogin: () -> Void
 
+    @StateObject private var motionManager = MotionManager()
     @State private var appeared = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             
-            // Background Image (Semi-transparent)
+            // Background Image (Parallax efekti ile yarı transparan)
             Image("welcome_bg")
                 .resizable()
                 .scaledToFill()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scaleEffect(1.1) // Hareket payı için biraz büyüttük
+                .offset(x: CGFloat(motionManager.roll * 50), y: CGFloat(motionManager.pitch * 50))
                 .opacity(0.2) // Yarı transparan
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+                .animation(.linear(duration: 0.1), value: motionManager.roll)
+                .animation(.linear(duration: 0.1), value: motionManager.pitch)
 
             VStack(spacing: 0) {
                 Spacer()
@@ -98,4 +105,36 @@ struct WelcomeView: View {
 
 #Preview {
     WelcomeView(onStart: {}, onStaffLogin: {})
+}
+
+// MARK: - CoreMotion Parallax Manager
+class MotionManager: ObservableObject {
+    private var motionManager: CMMotionManager
+    
+    @Published var pitch: Double = 0.0
+    @Published var roll: Double = 0.0
+    
+    init() {
+        self.motionManager = CMMotionManager()
+        self.motionManager.deviceMotionUpdateInterval = 1 / 60
+        self.start()
+    }
+    
+    func start() {
+        if motionManager.isDeviceMotionAvailable {
+            motionManager.startDeviceMotionUpdates(to: .main) { [weak self] (data, error) in
+                guard let data = data, error == nil else { return }
+                self?.pitch = data.attitude.pitch
+                self?.roll = data.attitude.roll
+            }
+        }
+    }
+    
+    func stop() {
+        motionManager.stopDeviceMotionUpdates()
+    }
+    
+    deinit {
+        stop()
+    }
 }
