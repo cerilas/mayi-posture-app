@@ -9,6 +9,15 @@ struct WelcomeView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
+            
+            // Background Image (Semi-transparent)
+            Image("welcome_bg")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .opacity(0.2) // Yarı transparan
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
 
             VStack(spacing: 0) {
                 Spacer()
