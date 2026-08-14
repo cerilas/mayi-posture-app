@@ -1,5 +1,7 @@
 import AVFoundation
 import Combine
+import CoreImage
+import UIKit
 
 /// Service responsible for managing the camera session and providing frames for processing.
 class CameraService: NSObject, ObservableObject {
@@ -11,6 +13,8 @@ class CameraService: NSObject, ObservableObject {
     private let sessionQueue = DispatchQueue(label: "com.myposture.camera.sessionQueue")
     
     var framePublisher = PassthroughSubject<CMSampleBuffer, Never>()
+    
+    private var lastSampleBuffer: CMSampleBuffer?
     
     override init() {
         super.init()
@@ -79,10 +83,28 @@ class CameraService: NSObject, ObservableObject {
             }
         }
     }
+    
+    func takeSnapshot() -> UIImage? {
+        guard let sampleBuffer = lastSampleBuffer,
+              let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            return nil
+        }
+        
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+            return nil
+        }
+        
+        // Return image. (Camera rotation is already handled by connection.videoRotationAngle = 90, 
+        // so the pixel buffer is correctly oriented).
+        return UIImage(cgImage: cgImage)
+    }
 }
 
 extension CameraService: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        lastSampleBuffer = sampleBuffer
         framePublisher.send(sampleBuffer)
     }
 }

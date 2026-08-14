@@ -382,65 +382,69 @@ struct AssessmentView: View {
     // MARK: - Instruction Overlay
 
     private var instructionOverlay: some View {
-        VStack(spacing: 32) {
-            Spacer()
-            
-            // Görsel
-            MovementInstructionVisual(moduleID: viewModel.currentModule.id)
-                .frame(width: 180, height: 260)
-                .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .fill(Color.black.opacity(0.4))
-                        .overlay(
+        GeometryReader { geometry in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 32) {
+                    Spacer(minLength: 40)
+                    
+                    // Görsel
+                    MovementInstructionVisual(moduleID: viewModel.currentModule.id)
+                        .frame(width: 180, height: 260)
+                        .padding(20)
+                        .background(
                             RoundedRectangle(cornerRadius: 32, style: .continuous)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                .fill(Color.black.opacity(0.4))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                )
+                                .shadow(color: accent.opacity(0.3), radius: 30, x: 0, y: 0) // Glow
                         )
-                        .shadow(color: accent.opacity(0.3), radius: 30, x: 0, y: 0) // Glow
-                )
-            
-            // Başlık ve Talimatlar
-            VStack(spacing: 16) {
-                Text(viewModel.currentModule.title)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(viewModel.currentModule.instructions, id: \.self) { instruction in
-                        HStack(alignment: .top, spacing: 12) {
-                            Circle().fill(accent).frame(width: 6, height: 6).padding(.top, 6)
-                            Text(instruction)
-                                .font(.system(size: 15, weight: .medium, design: .rounded))
-                                .foregroundColor(.white.opacity(0.85))
-                                .multilineTextAlignment(.leading)
+                    
+                    // Başlık ve Talimatlar
+                    VStack(spacing: 16) {
+                        Text(viewModel.currentModule.title)
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(viewModel.currentModule.instructions, id: \.self) { instruction in
+                                HStack(alignment: .top, spacing: 12) {
+                                    Circle().fill(accent).frame(width: 6, height: 6).padding(.top, 6)
+                                    Text(instruction)
+                                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                                        .foregroundColor(.white.opacity(0.85))
+                                        .multilineTextAlignment(.leading)
+                                }
+                            }
                         }
+                        .padding(.horizontal, 30)
                     }
+                    
+                    Spacer(minLength: 20)
+                    
+                    // Hazırım Butonu
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            viewModel.confirmReady()
+                        }
+                    }) {
+                        Text("Hazırım")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 18)
+                            .background(accent)
+                            .cornerRadius(16)
+                            .shadow(color: accent.opacity(0.5), radius: 12, x: 0, y: 6)
+                    }
+                    .padding(.horizontal, 40)
+                    .padding(.bottom, 60)
                 }
-                .padding(.horizontal, 30)
+                .frame(minHeight: geometry.size.height)
             }
-            
-            Spacer()
-            
-            // Hazırım Butonu
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    viewModel.confirmReady()
-                }
-            }) {
-                Text("Hazırım")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .background(accent)
-                    .cornerRadius(16)
-                    .shadow(color: accent.opacity(0.5), radius: 12, x: 0, y: 6)
-            }
-            .padding(.horizontal, 40)
-            .padding(.bottom, 60)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.3).ignoresSafeArea())
+        .background(Color.black.opacity(0.4).ignoresSafeArea())
     }
 
     // MARK: - Retry Button

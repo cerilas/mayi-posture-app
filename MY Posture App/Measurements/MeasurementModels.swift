@@ -33,6 +33,7 @@ struct AssessmentTestResult: Identifiable, Codable {
     let type: String // e.g., "FrontPosture"
     let measurements: [String: MeasurementResult]
     let overallQuality: MeasurementQuality
+    var snapshotUrl: String?
     
     var isSuccessful: Bool {
         overallQuality == .high || overallQuality == .acceptable

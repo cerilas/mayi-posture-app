@@ -41,6 +41,7 @@ struct TestResultPayload: Codable {
     let testType: String
     let overallQuality: String
     let avgConfidence: Double
+    let snapshotUrl: String?
     let measurements: [MeasurementPayload]
 }
 
@@ -112,6 +113,7 @@ class PostureAPIService: ObservableObject {
                     avgConfidence: result.measurements.values
                         .map(\.confidence)
                         .reduce(0, +) / Double(max(1, result.measurements.count)),
+                    snapshotUrl: result.snapshotUrl,
                     measurements: result.measurements.map { key, m in
                         MeasurementPayload(
                             metricKey: key,
@@ -135,6 +137,45 @@ class PostureAPIService: ObservableObject {
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
         return try decoder.decode(PostureSessionResponse.self, from: data)
+    }
+    
+    // MARK: - Upload Photo
+    
+    /// Fotoğrafı (snapshot) yükler ve sunucudaki göreceli path'ini döner.
+    func uploadPhoto(_ image: UIImage) async throws -> String? {
+        let url = URL(string: "\(baseURL)/api/posture/upload")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        // Compress the image (0.8 quality is a good balance of size/quality)
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            throw URLError(.cannotDecodeRawData)
+        }
+        
+        var body = Data()
+        let filename = "snapshot_\(UUID().uuidString).jpg"
+        let mimetype = "image/jpeg"
+        
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"files\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimetype)\r\n\r\n".data(using: .utf8)!)
+        body.append(imageData)
+        body.append("\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = body
+        
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        
+        struct UploadResponse: Codable {
+            let filePath: String
+        }
+        let res = try JSONDecoder().decode(UploadResponse.self, from: data)
+        return res.filePath
     }
     
     // MARK: - Fetch Patients (Admin Panel)

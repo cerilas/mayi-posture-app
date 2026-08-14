@@ -153,14 +153,20 @@ class AssessmentViewModel: ObservableObject {
     }
     
     private var results: [AssessmentTestResult] = []
+    private var temporarySnapshots: [UUID: UIImage] = [:]
     
     private func completeCurrentModule() {
-        let result = currentModule.finish()
+        var result = currentModule.finish()
         
         // Eğer ölçüm kalitesi düşükse kaydetme ve hata durumuna düş
         if result.overallQuality == .low || result.overallQuality == .invalid {
             self.state = .failed(reason: "Ölçüm tamamlanamadı veya kalitesi çok düşük. Lütfen ekrana tam sığdığınızdan emin olun.")
             return
+        }
+        
+        // Take a snapshot
+        if let image = cameraService.takeSnapshot() {
+            temporarySnapshots[result.id] = image.drawingSkeleton(pose: poseDetector.currentPose)
         }
         
         results.append(result)
@@ -203,13 +209,25 @@ class AssessmentViewModel: ObservableObject {
 
         let capturedResults = results
         let capturedCode = appointmentCode
+        let snaps = temporarySnapshots
 
         Task {
             do {
+                // Upload images first
+                var finalResults = capturedResults
+                for i in 0..<finalResults.count {
+                    let resId = finalResults[i].id
+                    if let image = snaps[resId] {
+                        if let url = try? await PostureAPIService.shared.uploadPhoto(image) {
+                            finalResults[i].snapshotUrl = url
+                        }
+                    }
+                }
+                
                 let response = try await PostureAPIService.shared.saveSession(
                     userId: userId,
                     appointmentCode: capturedCode,
-                    testResults: capturedResults
+                    testResults: finalResults
                 )
                 print("[AssessmentViewModel] Session saved: \(response.sessionId)")
             } catch {
@@ -226,6 +244,7 @@ class AssessmentViewModel: ObservableObject {
         captureProgress = 0
         currentModuleIndex = 0
         detectedJointCount = 0
+        temporarySnapshots.removeAll()
         state = .idle
     }
 }
