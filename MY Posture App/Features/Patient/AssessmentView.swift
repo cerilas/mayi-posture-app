@@ -382,10 +382,8 @@ struct AssessmentView: View {
     // MARK: - Instruction Overlay
 
     private var instructionOverlay: some View {
-        GeometryReader { geometry in
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 32) {
-                    Spacer(minLength: 40)
+        VStack(spacing: 32) {
+            Spacer(minLength: 40)
                     
                     // Görsel
                     MovementInstructionVisual(moduleID: viewModel.currentModule.id)
@@ -437,13 +435,11 @@ struct AssessmentView: View {
                             .background(accent)
                             .cornerRadius(16)
                             .shadow(color: accent.opacity(0.5), radius: 12, x: 0, y: 6)
-                    }
-                    .padding(.horizontal, 40)
-                    .padding(.bottom, 60)
-                }
-                .frame(minHeight: geometry.size.height)
             }
+            .padding(.horizontal, 40)
+            .padding(.bottom, 60)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.4).ignoresSafeArea())
     }
 

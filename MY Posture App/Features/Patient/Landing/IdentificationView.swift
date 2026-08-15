@@ -15,10 +15,8 @@ struct IdentificationView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            GeometryReader { geometry in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                Spacer()
+            VStack(spacing: 0) {
+                Spacer(minLength: 20)
 
                 // Header
                 VStack(spacing: 8) {
@@ -141,9 +139,6 @@ struct IdentificationView: View {
                 .padding(.bottom, 48)
                 .opacity(appeared ? 1 : 0)
             }
-            .frame(minHeight: geometry.size.height)
-        }
-    }
         }
         .onAppear {
             withAnimation(.easeOut(duration: 0.5)) { appeared = true }
