@@ -303,10 +303,18 @@ struct AssessmentView: View {
             // Results overlay
             if case .completed(let result) = viewModel.state {
                 Color.black.opacity(0.6).ignoresSafeArea()
-                AssessmentResultSummaryView(result: result, summary: viewModel.clinicalSummary) {
-                    viewModel.reset()
-                    onDismiss()
-                }
+                AssessmentResultSummaryView(
+                    result: result,
+                    summary: viewModel.clinicalSummary,
+                    saveStatus: viewModel.saveStatus,
+                    onRetry: {
+                        viewModel.retrySave()
+                    },
+                    onDismiss: {
+                        viewModel.reset()
+                        onDismiss()
+                    }
+                )
             }
         }
         .ignoresSafeArea()

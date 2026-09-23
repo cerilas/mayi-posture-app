@@ -29,8 +29,17 @@ struct PostureGuidance: Equatable {
     var holdProgress: Double = 0.0 // 0.0 ile 1.0 arası
 }
 
+/// Sunucuya Kayıt Durumu
+enum SaveStatus: Equatable {
+    case idle
+    case saving(message: String)
+    case success(message: String)
+    case failed(message: String)
+}
+
 class AssessmentViewModel: ObservableObject {
     @Published var state: AssessmentState = .idle
+    @Published var saveStatus: SaveStatus = .idle
     @Published var cameraService = CameraService()
     @Published var poseDetector = VisionPoseDetector()
     @Published var currentInstruction: String = ""
@@ -162,6 +171,7 @@ class AssessmentViewModel: ObservableObject {
         temporarySnapshots.removeAll()
         temporaryVideos.removeAll()
         sessionVideoURL = nil
+        saveStatus = .idle
         clinicalSummary = ClinicalPostureSummary()
         readyStartTime = nil
         postureGuidance = PostureGuidance()
@@ -663,58 +673,80 @@ class AssessmentViewModel: ObservableObject {
         buildClinicalSummary()
         state = .completed(result: finalResult)
         
-        // Değerlendirme tamamen bittiğinde kesintisiz video kaydı durdurulur ve sıkıştırılır
-        if cameraService.isRecordingVideo {
-            cameraService.stopVideoRecording { [weak self] compressedURL in
-                self?.sessionVideoURL = compressedURL
-                self?.saveAllResults()
-            }
-        } else {
-            saveAllResults()
+        // Değerlendirme bittiğinde kayıt akışını başlat
+        saveStatus = .saving(message: "Değerlendirme kaydediliyor...")
+        Task {
+            await performSaveFlow()
         }
     }
-    
-    private func saveAllResults() {
-        guard let userId = userId else {
-            print("[AssessmentViewModel] No userId — skipping API save.")
-            return
-        }
 
-        let capturedResults = completedResults
-        let capturedCode = appointmentCode
-        let snaps = temporarySnapshots
-        let sessionVideo = sessionVideoURL
-
+    @MainActor
+    func retrySave() {
         Task {
-            do {
-                var finalResults = capturedResults
-                for i in 0..<finalResults.count {
-                    let resId = finalResults[i].id
-                    if let image = snaps[resId] {
-                        if let url = try? await PostureAPIService.shared.uploadPhoto(image) {
-                            finalResults[i].snapshotUrl = url
-                        }
-                    }
+            await performSaveFlow()
+        }
+    }
+
+    @MainActor
+    private func performSaveFlow() async {
+        saveStatus = .saving(message: "Video hazırlanıyor...")
+        
+        // 1. Video kaydını durdur ve sıkıştır (eğer kayıt açıksa)
+        var compressedVideoURL: URL? = nil
+        if cameraService.isRecordingVideo {
+            compressedVideoURL = await withCheckedContinuation { continuation in
+                cameraService.stopVideoRecording { url in
+                    continuation.resume(returning: url)
                 }
-                
-                var uploadedSessionVideoUrl: String? = nil
-                if let videoURL = sessionVideo {
-                    if let url = try? await PostureAPIService.shared.uploadVideo(videoURL) {
-                        uploadedSessionVideoUrl = url
-                        try? FileManager.default.removeItem(at: videoURL)
-                    }
-                }
-                
-                let response = try await PostureAPIService.shared.saveSession(
-                    userId: userId,
-                    appointmentCode: capturedCode,
-                    videoUrl: uploadedSessionVideoUrl,
-                    testResults: finalResults
-                )
-                print("[AssessmentViewModel] Session saved: \(response.sessionId), video: \(uploadedSessionVideoUrl ?? "none")")
-            } catch {
-                print("[AssessmentViewModel] API save failed: \(error.localizedDescription)")
             }
+        }
+        self.sessionVideoURL = compressedVideoURL
+        
+        let capturedResults = completedResults
+        let snaps = temporarySnapshots
+        let capturedCode = appointmentCode
+        
+        // 2. Fotoğrafları sunucuya yükle
+        saveStatus = .saving(message: "Fotoğraflar yükleniyor...")
+        var finalResults = capturedResults
+        for i in 0..<finalResults.count {
+            let resId = finalResults[i].id
+            if let image = snaps[resId] {
+                if let url = try? await PostureAPIService.shared.uploadPhoto(image) {
+                    finalResults[i].snapshotUrl = url
+                }
+            }
+        }
+        
+        // 3. Videoyu sunucuya yükle (varsa)
+        var uploadedSessionVideoUrl: String? = nil
+        if let videoURL = compressedVideoURL {
+            saveStatus = .saving(message: "Seans videosu yükleniyor...")
+            do {
+                uploadedSessionVideoUrl = try await PostureAPIService.shared.uploadVideo(videoURL)
+                try? FileManager.default.removeItem(at: videoURL)
+            } catch {
+                print("[AssessmentViewModel] Video upload warning: \(error.localizedDescription)")
+                // Video yükleme hatası olursa dahi raporu kaydetmeye devam et
+            }
+        }
+        
+        // 4. Oturumu veritabanına kaydet
+        saveStatus = .saving(message: "Rapor sisteme işleniyor...")
+        let targetUserId = (userId?.isEmpty == false) ? userId! : "guest"
+        
+        do {
+            let response = try await PostureAPIService.shared.saveSession(
+                userId: targetUserId,
+                appointmentCode: capturedCode,
+                videoUrl: uploadedSessionVideoUrl,
+                testResults: finalResults
+            )
+            print("[AssessmentViewModel] Session saved: \(response.sessionId), video: \(uploadedSessionVideoUrl ?? "none")")
+            saveStatus = .success(message: "Rapor web paneline başarıyla kaydedildi!")
+        } catch {
+            print("[AssessmentViewModel] API save failed: \(error.localizedDescription)")
+            saveStatus = .failed(message: error.localizedDescription)
         }
     }
     
@@ -734,6 +766,7 @@ class AssessmentViewModel: ObservableObject {
         temporarySnapshots.removeAll()
         temporaryVideos.removeAll()
         sessionVideoURL = nil
+        saveStatus = .idle
         currentHoldSnapshot = nil
         smoothedLiveAngle = 0
         state = .idle
