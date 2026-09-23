@@ -5,8 +5,8 @@ class SquatAssessment: AssessmentModule {
     let id = "squat_5_reps"
     let title = "5 Tekrar Squat"
     let instructions = [
-        "Ayaklarınızı omuz genişliğinde açın.",
-        "Kontrollü bir şekilde 5 kez çömelip kalkın.",
+        "Kameraya tam karşıdan bakın ve ayaklarınızı açın.",
+        "5 saniye sabit kaldıktan sonra 5 kez çömelip kalkın.",
         "Kollarınızı öne doğru uzatabilirsiniz."
     ]
     

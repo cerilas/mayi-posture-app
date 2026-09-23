@@ -34,6 +34,7 @@ struct AssessmentTestResult: Identifiable, Codable {
     let measurements: [String: MeasurementResult]
     let overallQuality: MeasurementQuality
     var snapshotUrl: String?
+    var videoUrl: String?
     
     var isSuccessful: Bool {
         overallQuality == .high || overallQuality == .acceptable

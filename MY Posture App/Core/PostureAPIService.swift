@@ -34,6 +34,7 @@ struct PostureSessionPayload: Codable {
     let userId: String
     let appointmentCode: String?
     let deviceInfo: String?
+    let videoUrl: String?
     let testResults: [TestResultPayload]
 }
 
@@ -42,6 +43,7 @@ struct TestResultPayload: Codable {
     let overallQuality: String
     let avgConfidence: Double
     let snapshotUrl: String?
+    let videoUrl: String?
     let measurements: [MeasurementPayload]
 }
 
@@ -100,12 +102,14 @@ class PostureAPIService: ObservableObject {
     func saveSession(
         userId: String,
         appointmentCode: String?,
+        videoUrl: String? = nil,
         testResults: [AssessmentTestResult]
     ) async throws -> PostureSessionResponse {
         let payload = PostureSessionPayload(
             userId: userId,
             appointmentCode: appointmentCode,
             deviceInfo: deviceInfo(),
+            videoUrl: videoUrl,
             testResults: testResults.map { result in
                 TestResultPayload(
                     testType: result.type,
@@ -114,6 +118,7 @@ class PostureAPIService: ObservableObject {
                         .map(\.confidence)
                         .reduce(0, +) / Double(max(1, result.measurements.count)),
                     snapshotUrl: result.snapshotUrl,
+                    videoUrl: result.videoUrl,
                     measurements: result.measurements.map { key, m in
                         MeasurementPayload(
                             metricKey: key,
@@ -167,6 +172,43 @@ class PostureAPIService: ObservableObject {
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         
         request.httpBody = body
+        
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        
+        struct UploadResponse: Codable {
+            let filePath: String
+        }
+        let res = try JSONDecoder().decode(UploadResponse.self, from: data)
+        return res.filePath
+    }
+    
+    // MARK: - Upload Video
+    
+    /// Video dosyasını yükler ve sunucudaki göreceli path'ini döner.
+    func uploadVideo(_ fileURL: URL) async throws -> String? {
+        let url = URL(string: "\(baseURL)/api/posture/upload")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        let videoData = try Data(contentsOf: fileURL)
+        
+        var body = Data()
+        let filename = "video_\(UUID().uuidString).mp4"
+        let mimetype = "video/mp4"
+        
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"files\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimetype)\r\n\r\n".data(using: .utf8)!)
+        body.append(videoData)
+        body.append("\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = body
+        request.timeoutInterval = 120 // 2 minutes for video upload
         
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)

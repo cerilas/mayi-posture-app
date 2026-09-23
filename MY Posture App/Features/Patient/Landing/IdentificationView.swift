@@ -4,6 +4,7 @@ struct IdentificationView: View {
     @State private var code: String = ""
     @FocusState private var isFocused: Bool
     var onIdentified: (String) -> Void
+    var onSkip: () -> Void = {}
     var onCancel: () -> Void
     var isLoading: Bool = false
     var errorMessage: String? = nil
@@ -13,138 +14,170 @@ struct IdentificationView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color(red: 0.04, green: 0.05, blue: 0.08)
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Spacer(minLength: 20)
-
-                // Header
-                VStack(spacing: 8) {
-                    Image("AppLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 50, height: 50)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .padding(.bottom, 6)
-
-                    Text("Randevu Kodu")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-
-                    Text("Size verilen 6 haneli kodu giriniz.")
-                        .font(.system(size: 14, weight: .regular, design: .rounded))
-                        .foregroundColor(Color.white.opacity(0.4))
-                }
-                .opacity(appeared ? 1 : 0)
-
-                Spacer()
-
-                // OTP Input
-                ZStack {
-                    TextField("", text: $code)
-                        .keyboardType(.asciiCapable)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .focused($isFocused)
-                        .opacity(0.01)
-                        .frame(width: 1, height: 1)
-
-                    HStack(spacing: 10) {
-                        ForEach(0..<6, id: \.self) { index in
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(Color.white.opacity(0.05))
-                                    .frame(width: 46, height: 58)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(
-                                                code.count == index ? accentColor : Color.white.opacity(0.12),
-                                                lineWidth: code.count == index ? 1.5 : 1
-                                            )
-                                    )
-
-                                if index < code.count {
-                                    let charIndex = code.index(code.startIndex, offsetBy: index)
-                                    Text(String(code[charIndex]))
-                                        .font(.system(size: 26, weight: .semibold, design: .monospaced))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                        }
-                    }
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { isFocused = true }
-                .onChange(of: code) { _, newValue in
-                    if newValue.count > 6 {
-                        code = String(newValue.prefix(6))
-                    }
-                    if newValue.count == 6 {
-                        isFocused = false
-                    }
-                }
-                .opacity(appeared ? 1 : 0)
-
-                // Error message
-                if let error = errorMessage {
-                    Text(error)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(Color.red.opacity(0.85))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
-                        .transition(.opacity)
-                }
-
-                Spacer()
-                Spacer()
-
-                // Action Buttons
-                HStack(spacing: 12) {
+                // Üst Bar (Geri Butonu)
+                HStack {
                     Button(action: onCancel) {
-                        Text("İptal")
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
-                            .foregroundColor(Color.white.opacity(0.5))
-                            .frame(width: 100, height: 50)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Color.white.opacity(0.06))
-                            )
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Geri")
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                        }
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Color.white.opacity(0.08)))
                     }
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
 
-                    Button(action: {
-                        if code.count >= 4 { onIdentified(code) }
-                    }) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(code.count >= 4 ? accentColor : Color.white.opacity(0.12))
-                            if isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                HStack(spacing: 8) {
-                                    Text("Devam Et")
-                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 13, weight: .semibold))
-                                }
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 28) {
+                        // Başlık ve Açıklama
+                        VStack(spacing: 12) {
+                            Image(systemName: "number.square.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(accentColor)
+                                .padding(.top, 20)
+
+                            Text("Randevu Kodu")
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
+
+                            Text("Fizyoterapistinizin verdiği 6 haneli kodu giriniz.")
+                                .font(.system(size: 14, weight: .regular, design: .rounded))
+                                .foregroundColor(Color.white.opacity(0.55))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 32)
+                        }
+
+                        // OTP Giriş Kutuları
+                        ZStack {
+                            TextField("", text: $code)
+                                .keyboardType(.asciiCapable)
+                                .textInputAutocapitalization(.characters)
+                                .autocorrectionDisabled()
+                                .focused($isFocused)
+                                .opacity(0.01)
+                                .frame(width: 1, height: 1)
+
+                            HStack(spacing: 8) {
+                                ForEach(0..<6, id: \.self) { index in
+                                    let isCurrent = code.count == index
+                                    let isFilled = index < code.count
+                                    
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .fill(Color.white.opacity(0.06))
+                                            .frame(width: 44, height: 56)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                    .stroke(
+                                                        isCurrent ? accentColor : (isFilled ? accentColor.opacity(0.4) : Color.white.opacity(0.12)),
+                                                        lineWidth: isCurrent ? 2 : 1
+                                                    )
+                                            )
+
+                                        if isFilled {
+                                            let charIndex = code.index(code.startIndex, offsetBy: index)
+                                            Text(String(code[charIndex]))
+                                                .font(.system(size: 22, weight: .bold, design: .monospaced))
+                                                .foregroundColor(.white)
+                                        }
+                                    }
+                                }
                             }
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
+                        .contentShape(Rectangle())
+                        .onTapGesture { isFocused = true }
+                        .onChange(of: code) { _, newValue in
+                            if newValue.count > 6 {
+                                code = String(newValue.prefix(6))
+                            }
+                            if newValue.count == 6 {
+                                isFocused = false
+                            }
+                        }
+
+                        // Hata Mesajı
+                        if let error = errorMessage {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .font(.system(size: 13))
+                                Text(error)
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                            }
+                            .foregroundColor(Color.red.opacity(0.9))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                            .transition(.opacity)
+                        }
+
+                        // Aksiyon Butonları
+                        VStack(spacing: 12) {
+                            Button(action: {
+                                if code.count >= 4 { onIdentified(code) }
+                            }) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(code.count >= 4 ? accentColor : Color.white.opacity(0.12))
+                                    
+                                    if isLoading {
+                                        ProgressView()
+                                            .tint(.white)
+                                    } else {
+                                        HStack(spacing: 8) {
+                                            Text("Devam Et")
+                                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                            Image(systemName: "arrow.right")
+                                                .font(.system(size: 14, weight: .bold))
+                                        }
+                                        .foregroundColor(code.count >= 4 ? .white : Color.white.opacity(0.4))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                            }
+                            .disabled(code.count < 4 || isLoading)
+
+                            // Kodu olmayan kullanıcı için hızlı başlangıç
+                            Button(action: onSkip) {
+                                HStack(spacing: 6) {
+                                    Text("Randevu Kodum Yok / Hızlı Başla")
+                                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    Image(systemName: "chevron.forward")
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                                .foregroundColor(Color.white.opacity(0.45))
+                                .padding(.vertical, 8)
+                            }
+                        }
+                        .padding(.horizontal, 28)
+                        .padding(.top, 12)
                     }
-                    .disabled(code.count < 4 || isLoading)
+                    .padding(.bottom, 32)
                 }
-                .padding(.horizontal, 40)
-                .padding(.bottom, 48)
-                .opacity(appeared ? 1 : 0)
             }
         }
         .onAppear {
             withAnimation(.easeOut(duration: 0.5)) { appeared = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 isFocused = true
             }
         }
     }
+}
+
+#Preview {
+    IdentificationView(
+        onIdentified: { _ in },
+        onSkip: {},
+        onCancel: {}
+    )
 }

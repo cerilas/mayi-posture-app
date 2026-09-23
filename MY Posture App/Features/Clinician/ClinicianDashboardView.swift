@@ -4,6 +4,7 @@ struct ClinicianDashboardView: View {
     @StateObject private var dataStore = ClinicianDataStore.shared
     @State private var searchText = ""
     
+    @AppStorage("record_assessment_video") private var recordAssessmentVideo = true
     @AppStorage("enable_front_posture") private var enableFrontPosture = true
     @AppStorage("enable_side_posture") private var enableSidePosture = true
     @AppStorage("enable_shoulder_flexion") private var enableShoulderFlexion = true
@@ -13,6 +14,11 @@ struct ClinicianDashboardView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section(header: Text("Genel Ayarlar"), footer: Text("Değerlendirme başladığında kamera otomatik ve kesintisiz video kaydı alır. Randevu bittiğinde video sıkıştırılıp sunucuya yüklenir.")) {
+                    Toggle("Değerlendirme Sırasında Video Kaydet", isOn: $recordAssessmentVideo)
+                        .tint(.blue)
+                }
+
                 Section(header: Text("Aktif Test Modülleri")) {
                     Toggle("Ön Postür Analizi", isOn: $enableFrontPosture)
                         .tint(.blue)

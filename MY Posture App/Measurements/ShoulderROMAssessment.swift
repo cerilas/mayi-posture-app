@@ -17,9 +17,9 @@ class ShoulderROMAssessment: AssessmentModule {
         self.id = "shoulder_\(type.rawValue)"
         self.title = type == .flexion ? "Omuz Fleksiyonu" : "Omuz Abduksiyonu"
         self.instructions = [
-            "Kollarınızı \(type == .flexion ? "önden" : "yanlardan") yukarı kaldırın.",
-            "Mümkün olduğunca yukarı uzanın.",
-            "Yavaşça başlangıç pozisyonuna dönün."
+            "Kameraya tam karşıdan bakın ve dik durun.",
+            "5 saniye sabit kaldıktan sonra kollarınızı \(type == .flexion ? "önden" : "yanlardan") yukarı kaldırın.",
+            "Mümkün olduğunca yukarı uzanın ve yavaşça indirin."
         ]
     }
     

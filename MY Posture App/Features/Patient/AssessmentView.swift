@@ -6,6 +6,8 @@ import WebKit
 struct PoseSkeletonOverlay: View {
     let pose: BodyPose?
     let moduleID: String
+    var smoothedAngle: Double = 0
+    var isFrontCamera: Bool = true
     private let connections: [(BodyJoint.JointName, BodyJoint.JointName)] = [
         (.head, .neck),
         (.neck, .leftShoulder), (.neck, .rightShoulder),
@@ -25,7 +27,8 @@ struct PoseSkeletonOverlay: View {
                     let h = size.height
                     func pt(_ name: BodyJoint.JointName) -> CGPoint? {
                         guard let j = pose.joint(name) else { return nil }
-                        return CGPoint(x: (1 - j.position.x) * w, y: j.position.y * h)
+                        let x = isFrontCamera ? (1 - j.position.x) * w : j.position.x * w
+                        return CGPoint(x: x, y: j.position.y * h)
                     }
                     for (a, b) in connections {
                         if let pA = pt(a), let pB = pt(b) {
@@ -37,7 +40,7 @@ struct PoseSkeletonOverlay: View {
                         }
                     }
                     for joint in pose.joints.values {
-                        let x = (1 - joint.position.x) * w
+                        let x = isFrontCamera ? (1 - joint.position.x) * w : joint.position.x * w
                         let y = joint.position.y * h
                         let rect = CGRect(x: x - 5, y: y - 5, width: 10, height: 10)
                         context.fill(Path(ellipseIn: rect),
@@ -48,12 +51,13 @@ struct PoseSkeletonOverlay: View {
                     
                     // MARK: - AR Angle Visualizations
                     
-                    func drawText(_ text: String, at point: CGPoint, color: Color = .white) {
-                        var resolvedText = context.resolve(Text(text).font(.system(size: 14, weight: .bold, design: .rounded)))
-                        resolvedText.shading = .color(color)
-                        let width: CGFloat = CGFloat(text.count * 9 + 8)
-                        let textRect = CGRect(x: point.x - width/2, y: point.y - 12, width: width, height: 24)
-                        context.fill(Path(roundedRect: textRect, cornerRadius: 6), with: .color(.black.opacity(0.65)))
+                    func drawBadge(_ text: String, at point: CGPoint, color: Color) {
+                        var resolvedText = context.resolve(Text(text).font(.system(size: 13, weight: .bold, design: .rounded)))
+                        resolvedText.shading = .color(.white)
+                        let width: CGFloat = CGFloat(text.count * 8 + 20)
+                        let textRect = CGRect(x: point.x - width/2, y: point.y - 14, width: width, height: 28)
+                        context.fill(Path(roundedRect: textRect, cornerRadius: 8), with: .color(color.opacity(0.85)))
+                        context.stroke(Path(roundedRect: textRect, cornerRadius: 8), with: .color(.white.opacity(0.4)), style: StrokeStyle(lineWidth: 1))
                         context.draw(resolvedText, at: point, anchor: .center)
                     }
 
@@ -62,34 +66,46 @@ struct PoseSkeletonOverlay: View {
                     switch moduleID {
                     case "front_static_posture":
                         if let ls = pt(.leftShoulder), let rs = pt(.rightShoulder) {
+                            // Omuzlar arası yatay referans çizgisi
                             var ref = Path()
-                            ref.move(to: CGPoint(x: rs.x - 30, y: rs.y))
-                            ref.addLine(to: CGPoint(x: ls.x + 30, y: rs.y))
-                            context.stroke(ref, with: .color(accent), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                            ref.move(to: CGPoint(x: rs.x - 35, y: rs.y))
+                            ref.addLine(to: CGPoint(x: ls.x + 35, y: rs.y))
+                            context.stroke(ref, with: .color(accent.opacity(0.8)), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
                             
                             let dx = rs.x - ls.x
                             let dy = rs.y - ls.y
-                            let angle = min(abs(atan2(dy, dx) * 180 / .pi), 180 - abs(atan2(dy, dx) * 180 / .pi))
-                            drawText(String(format: "%.1f°", angle), at: CGPoint(x: (ls.x + rs.x)/2, y: rs.y - 20), color: accent)
+                            let rawAngle = min(abs(atan2(dy, dx) * 180 / .pi), 180 - abs(atan2(dy, dx) * 180 / .pi))
+                            let displayAngle = smoothedAngle > 0 ? smoothedAngle : rawAngle
+                            let isBalanced = displayAngle < 1.5
+                            let badgeColor: Color = isBalanced ? Color.green : Color.orange
+                            let title = isBalanced ? String(format: "Omuzlar Dengeli (%.1f°)", displayAngle) : String(format: "Omuz Eğimi: %.1f°", displayAngle)
+                            
+                            drawBadge(title, at: CGPoint(x: (ls.x + rs.x)/2, y: min(ls.y, rs.y) - 26), color: badgeColor)
                         }
                         
                     case "side_static_posture":
-                        let isLeft = pt(.leftEar) != nil && pt(.leftShoulder) != nil
-                        if let ear = isLeft ? pt(.leftEar) : pt(.rightEar),
-                           let sh = isLeft ? pt(.leftShoulder) : pt(.rightShoulder) {
-                            
+                        let earPt = pt(.leftEar) ?? pt(.rightEar) ?? pt(.head)
+                        let shPt = pt(.leftShoulder) ?? pt(.rightShoulder)
+                        if let ear = earPt, let sh = shPt {
+                            // Omuzdan yukarı dikey çekül hattı
                             var ref = Path()
                             ref.move(to: sh)
-                            ref.addLine(to: CGPoint(x: sh.x, y: ear.y - 20))
-                            context.stroke(ref, with: .color(accent), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                            ref.addLine(to: CGPoint(x: sh.x, y: ear.y - 25))
+                            context.stroke(ref, with: .color(accent.opacity(0.7)), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
                             
+                            // Omuz-kulak bağlantı hattı
                             var line = Path()
                             line.move(to: sh)
                             line.addLine(to: ear)
-                            context.stroke(line, with: .color(accent.opacity(0.8)), style: StrokeStyle(lineWidth: 2))
+                            context.stroke(line, with: .color(accent.opacity(0.85)), style: StrokeStyle(lineWidth: 2))
                             
-                            let angle = abs(atan2(ear.x - sh.x, -(ear.y - sh.y)) * 180 / .pi)
-                            drawText(String(format: "%.1f°", angle), at: CGPoint(x: (ear.x + sh.x)/2 + 25, y: (ear.y + sh.y)/2), color: accent)
+                            let rawAngle = abs(atan2(ear.x - sh.x, -(ear.y - sh.y)) * 180 / .pi)
+                            let displayAngle = smoothedAngle > 0 ? smoothedAngle : rawAngle
+                            let isNormal = displayAngle <= 10.0
+                            let badgeColor: Color = isNormal ? Color.green : (displayAngle <= 15.0 ? Color.orange : Color.red)
+                            let title = String(format: "İleri Baş: %.1f°", displayAngle)
+                            
+                            drawBadge(title, at: CGPoint(x: (ear.x + sh.x)/2 + 35, y: (ear.y + sh.y)/2), color: badgeColor)
                         }
                         
                     case "shoulder_flexion", "shoulder_abduction":
@@ -101,7 +117,7 @@ struct PoseSkeletonOverlay: View {
                                 context.stroke(ref, with: .color(accent), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
                                 
                                 let angle = abs(atan2(wrist.x - sh.x, -(wrist.y - sh.y)) * 180 / .pi)
-                                drawText(String(format: "%.0f°", angle), at: CGPoint(x: wrist.x + 25, y: wrist.y), color: accent)
+                                drawBadge(String(format: "%.0f°", angle), at: CGPoint(x: wrist.x + 25, y: wrist.y), color: accent)
                             }
                         }
                         
@@ -112,7 +128,7 @@ struct PoseSkeletonOverlay: View {
                                 let a2 = atan2(ankle.y - knee.y, ankle.x - knee.x)
                                 var angle = abs((a1 - a2) * 180 / .pi)
                                 if angle > 180 { angle = 360 - angle }
-                                drawText(String(format: "%.0f°", angle), at: CGPoint(x: knee.x - 30, y: knee.y), color: accent)
+                                drawBadge(String(format: "%.0f°", angle), at: CGPoint(x: knee.x - 30, y: knee.y), color: accent)
                             }
                         }
                         
@@ -141,13 +157,23 @@ struct GIFView: UIViewRepresentable {
         webView.isUserInteractionEnabled = false
 
         if let asset = NSDataAsset(name: dataName) {
-            // GIF verisini doğrudan yükle
-            webView.load(
-                asset.data,
-                mimeType: "image/gif",
-                characterEncodingName: "UTF-8",
-                baseURL: URL(fileURLWithPath: "")
-            )
+            let base64String = asset.data.base64EncodedString()
+            let html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <style>
+                body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: transparent; }
+                img { width: 100%; height: 100%; object-fit: contain; }
+            </style>
+            </head>
+            <body>
+                <img src="data:image/gif;base64,\(base64String)" />
+            </body>
+            </html>
+            """
+            webView.loadHTMLString(html, baseURL: nil)
         }
         return webView
     }
@@ -234,9 +260,20 @@ struct AssessmentView: View {
                 .blur(radius: viewModel.state == .instruction ? 15 : 0)
                 .animation(.easeInOut(duration: 0.4), value: viewModel.state)
 
+            // Posture Analysis Poster Grid & Plumb Line (Izgara ve Çekül Hattı)
+            if viewModel.state != .instruction {
+                PostureGridOverlay(isAligned: viewModel.postureGuidance.isReady)
+                    .animation(.easeInOut(duration: 0.3), value: viewModel.postureGuidance.isReady)
+            }
+
             // Pose Skeleton (Talimat ekranında gizle)
             if viewModel.state != .instruction {
-                PoseSkeletonOverlay(pose: viewModel.poseDetector.currentPose, moduleID: viewModel.currentModule.id)
+                PoseSkeletonOverlay(
+                    pose: viewModel.poseDetector.currentPose,
+                    moduleID: viewModel.currentModule.id,
+                    smoothedAngle: viewModel.smoothedLiveAngle,
+                    isFrontCamera: viewModel.isFrontCamera
+                )
             }
 
             // Vignette
@@ -266,7 +303,7 @@ struct AssessmentView: View {
             // Results overlay
             if case .completed(let result) = viewModel.state {
                 Color.black.opacity(0.6).ignoresSafeArea()
-                AssessmentResultSummaryView(result: result) {
+                AssessmentResultSummaryView(result: result, summary: viewModel.clinicalSummary) {
                     viewModel.reset()
                     onDismiss()
                 }
@@ -286,10 +323,23 @@ struct AssessmentView: View {
 
     private var headerBar: some View {
         VStack(spacing: 10) {
-            HStack(alignment: .center) {
-                // ✅ Uses closure callback instead of @Environment(\.dismiss)
+            HStack(alignment: .center, spacing: 10) {
+                // Kapat Butonu
                 Button(action: onDismiss) {
                     Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.white.opacity(0.15)))
+                }
+
+                // Ön / Arka Kamera Çevirme Butonu
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        viewModel.switchCamera()
+                    }
+                }) {
+                    Image(systemName: "camera.rotate.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(width: 36, height: 36)
@@ -311,16 +361,20 @@ struct AssessmentView: View {
 
                 Spacer()
 
-                // ⏭ Atla Butonu
+                // Atla Butonu
                 Button(action: {
                     withAnimation { viewModel.skipCurrentModule() }
                 }) {
-                    Text("Atla")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color.white.opacity(0.2)))
+                    HStack(spacing: 5) {
+                        Text("Atla")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(Color.white.opacity(0.2)))
                 }
             }
             .padding(.horizontal, 20)
@@ -367,6 +421,43 @@ struct AssessmentView: View {
 
                 if case .positioning = viewModel.state {
                     positioningHint
+                    
+                    if viewModel.cameraService.isRecordingVideo {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                                .modifier(PulseEffect(isAnimating: true))
+                            Text("Otomatik Video Kaydı Aktif")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.black.opacity(0.45)))
+                    }
+                    
+                    // Fotoğraf Çek (Complete Module) Butonu - Manuel ve Tam Genişlik
+                    Button(action: {
+                        withAnimation {
+                            viewModel.captureManualPhoto()
+                        }
+                    }) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "camera.circle.fill")
+                                .font(.system(size: 26, weight: .bold))
+                            Text(viewModel.currentModule.id.contains("squat") ? "Kayıt Başlat" : "Fotoğraf Çek")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(viewModel.postureGuidance.isReady ? accent : Color.white.opacity(0.15))
+                        .cornerRadius(16)
+                        .shadow(color: viewModel.postureGuidance.isReady ? accent.opacity(0.4) : .clear, radius: 10, x: 0, y: 4)
+                    }
+                    .disabled(!viewModel.postureGuidance.isReady)
+                    .padding(.top, 4)
                 } else if case .capturing = viewModel.state {
                     capturingInstructions
                 } else if case .failed(let reason) = viewModel.state {
@@ -488,50 +579,32 @@ struct AssessmentView: View {
     // MARK: - Positioning Hint
 
     private var positioningHint: some View {
-        let count = viewModel.detectedJointCount
-        let isDetected = count > 0
-        let isReady = count >= 8
-        let statusColor: Color = isReady ? .green : (isDetected ? .yellow : .red)
+        let guidance = viewModel.postureGuidance
 
         return VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 10, height: 10)
-                    .shadow(color: statusColor.opacity(0.8), radius: 4)
+            HStack(spacing: 12) {
+                Image(systemName: guidance.statusIcon)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(guidance.statusColor)
+                    .frame(width: 28, height: 28)
 
-                Text(isReady
-                     ? "Vücut algılandı — hazırlanıyor..."
-                     : (isDetected
-                        ? "Kısmen algılandı — biraz geri adım atın"
-                        : "Vücut algılanamıyor — kameraya bakın"))
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.85))
+                Text(guidance.statusText)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer()
             }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3).fill(Color.white.opacity(0.12)).frame(height: 4)
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(statusColor)
-                        .frame(width: geo.size.width * CGFloat(min(count, 14)) / 14.0, height: 4)
-                        .animation(.spring(response: 0.3), value: count)
-                }
-            }
-            .frame(height: 4)
-
-            Text("\(count) / 14 eklem tespit edildi")
-                .font(.system(size: 11, weight: .regular, design: .rounded))
-                .foregroundColor(Color.white.opacity(0.4))
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.black.opacity(0.5))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(0.6))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(statusColor.opacity(0.4), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(guidance.statusColor.opacity(0.5), lineWidth: 1.5)
                 )
         )
     }
@@ -569,4 +642,35 @@ struct AssessmentView: View {
 
 #Preview {
     AssessmentView(onDismiss: {})
+}
+
+// MARK: - Pulse Effect
+
+struct PulseEffect: ViewModifier {
+    var isAnimating: Bool
+    @State private var pulse: Bool = false
+    
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(pulse ? 1.2 : 1.0)
+            .opacity(pulse ? 0.5 : 1.0)
+            .onChange(of: isAnimating) { newValue in
+                if newValue {
+                    withAnimation(Animation.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                        pulse = true
+                    }
+                } else {
+                    withAnimation {
+                        pulse = false
+                    }
+                }
+            }
+            .onAppear {
+                if isAnimating {
+                    withAnimation(Animation.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                        pulse = true
+                    }
+                }
+            }
+    }
 }

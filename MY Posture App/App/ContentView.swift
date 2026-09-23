@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
     enum FlowState {
@@ -26,31 +27,36 @@ struct ContentView: View {
                     onStart: { flowState = .identification },
                     onStaffLogin: { flowState = .clinicianAuth }
                 )
-                .transition(.move(edge: .trailing))
+                .transition(.opacity)
                 
             case .identification:
                 IdentificationView(
                     onIdentified: { code in
                         Task { await lookupCode(code) }
                     },
+                    onSkip: {
+                        patientCode = ""
+                        resolvedUserId = nil
+                        flowState = .consent
+                    },
                     onCancel: { flowState = .welcome },
                     isLoading: isLookingUp,
                     errorMessage: codeError
                 )
-                .transition(.move(edge: .trailing))
+                .transition(.opacity)
                 
             case .consent:
                 ConsentView(
                     onAccept: { flowState = .assessment },
                     onDecline: { flowState = .welcome }
                 )
-                .transition(.move(edge: .trailing))
+                .transition(.opacity)
                 
             case .assessment:
                 AssessmentView(
                     onDismiss: { flowState = .welcome },
                     userId: resolvedUserId,
-                    appointmentCode: patientCode
+                    appointmentCode: patientCode.isEmpty ? nil : patientCode
                 )
                 .transition(.opacity)
                 
@@ -59,7 +65,7 @@ struct ContentView: View {
                     onAuthenticated: { flowState = .clinicianDashboard },
                     onCancel: { flowState = .welcome }
                 )
-                .transition(.move(edge: .bottom))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
                 
             case .clinicianDashboard:
                 NavigationStack {
@@ -73,7 +79,7 @@ struct ContentView: View {
                             }
                         }
                 }
-                .transition(.move(edge: .bottom))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
                 
             case .debug:
                 NavigationStack {
@@ -84,10 +90,10 @@ struct ContentView: View {
                             }
                         }
                 }
-                .transition(.move(edge: .bottom))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.spring(), value: flowState)
+        .animation(.easeInOut(duration: 0.3), value: flowState)
         .onAppear {
             ClinicianDataStore.shared.setup(with: modelContext)
         }

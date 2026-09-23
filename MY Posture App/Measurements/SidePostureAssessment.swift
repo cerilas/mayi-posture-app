@@ -1,26 +1,26 @@
 import Foundation
 import CoreGraphics
 
-/// Implementation of the Side (Sagittal) Static Posture Assessment.
+/// Implementation of the Side (Sagittal) Static Posture Assessment (Fizyoterapist Göz Muayenesi).
 class SidePostureAssessment: AssessmentModule {
     let id = "side_static_posture"
     let title = "Yan Postür Analizi"
     let instructions = [
-        "Sağ veya sol yanınızı dönün.",
+        "Kameraya doğru sağ veya sol profilinizi dönün.",
         "Kollarınızı serbest bırakın.",
-        "Karşıya doğru dik bakın.",
-        "Hareket etmeyin."
+        "Kendi baktığınız yöne (ufka) bakın, kameraya dönmeyin.",
+        "5 saniye sabit kalın."
     ]
     
     private var capturedPoses: [BodyPose] = []
-    private let requiredCaptureCount = 45 // ~3 seconds at 15fps
+    private let minRequiredFrames = 10
     
     func processPose(_ pose: BodyPose) {
-        // Require at least one side to be clearly visible: (Ear, Shoulder, Hip)
-        let hasLeftSide = pose.joint(.leftEar) != nil && pose.joint(.leftShoulder) != nil && pose.joint(.leftHip) != nil
-        let hasRightSide = pose.joint(.rightEar) != nil && pose.joint(.rightShoulder) != nil && pose.joint(.rightHip) != nil
+        // Yan postür için bir taraftaki kulak ve omuzun (veya kafa ve omuzun) görünmesi yeterlidir
+        let hasLeftUpper = (pose.joint(.leftEar) != nil || pose.joint(.head) != nil) && pose.joint(.leftShoulder) != nil
+        let hasRightUpper = (pose.joint(.rightEar) != nil || pose.joint(.head) != nil) && pose.joint(.rightShoulder) != nil
         
-        if hasLeftSide || hasRightSide {
+        if hasLeftUpper || hasRightUpper {
             capturedPoses.append(pose)
         }
     }
@@ -35,7 +35,7 @@ class SidePostureAssessment: AssessmentModule {
         var totalConf: Float = 0
         
         for pose in capturedPoses {
-            // Determine which side is more visible
+            // Hangi taraf daha net görünüyorsa onu seç
             let leftConf = [pose.joint(.leftEar), pose.joint(.leftShoulder), pose.joint(.leftHip)]
                 .compactMap { $0?.confidence }.reduce(0, +)
             
@@ -44,66 +44,70 @@ class SidePostureAssessment: AssessmentModule {
             
             let useLeft = leftConf >= rightConf
             
-            if let ear = useLeft ? pose.joint(.leftEar) : pose.joint(.rightEar),
-               let shoulder = useLeft ? pose.joint(.leftShoulder) : pose.joint(.rightShoulder),
-               let hip = useLeft ? pose.joint(.leftHip) : pose.joint(.rightHip) {
-                
-                // Angle relative to vertical (which is 90 degrees in our coordinate system where horizontal is 0)
-                // We want to know how far forward the ear is relative to the shoulder.
-                // GeometryEngine.horizontalAngle returns angle from positive X axis.
-                // Vertical (top to bottom) is 270 or 90 depending on Y axis.
-                // Since Y is flipped for SwiftUI (0 at top), shoulder to ear vector (shoulder is bottom, ear is top)
-                // goes in -Y direction. Let's compute manually to be safe.
-                
-                // dx, dy from Shoulder to Ear
+            let earJoint = useLeft ? (pose.joint(.leftEar) ?? pose.joint(.head)) : (pose.joint(.rightEar) ?? pose.joint(.head))
+            let shoulderJoint = useLeft ? pose.joint(.leftShoulder) : pose.joint(.rightShoulder)
+            let hipJoint = useLeft ? pose.joint(.leftHip) : pose.joint(.rightHip)
+            
+            if let ear = earJoint, let shoulder = shoulderJoint {
+                // Kulak ile omuz arasındaki dikey sapma açısı (Forward Head Posture)
+                // iOS koordinatlarında Y aşağı doğrudur (Y=0 üst).
                 let dxHead = ear.position.x - shoulder.position.x
-                let dyHead = ear.position.y - shoulder.position.y // Ear Y < Shoulder Y (so dy is negative)
+                let dyHead = ear.position.y - shoulder.position.y // Baş omuzdan yukarıdaysa negatiftir
                 
-                // We want the angle from the vertical axis.
-                // Vertical axis vector is (0, -1) going upwards.
-                // Angle = atan2(dx, -dy) in degrees
-                let headAngle = atan2(dxHead, -dyHead) * 180 / .pi
-                
-                // Trunk Lean (Shoulder to Hip)
+                // Dikey eksenden sapma: atan2(|dx|, |dy|)
+                let fhpAngle = atan2(abs(dxHead), abs(dyHead)) * 180 / .pi
+                forwardHeadAngles.append(fhpAngle)
+            }
+            
+            if let shoulder = shoulderJoint, let hip = hipJoint {
                 let dxTrunk = shoulder.position.x - hip.position.x
                 let dyTrunk = shoulder.position.y - hip.position.y
-                let trunkAngle = atan2(dxTrunk, -dyTrunk) * 180 / .pi
-                
-                // Make angles absolute because it depends on which side they are facing
-                forwardHeadAngles.append(abs(headAngle))
-                trunkLeans.append(abs(trunkAngle))
+                let trunkAngle = atan2(abs(dxTrunk), abs(dyTrunk)) * 180 / .pi
+                trunkLeans.append(trunkAngle)
             }
+            
             totalConf += pose.confidence
         }
         
-        let avgFHP = forwardHeadAngles.isEmpty ? 0 : forwardHeadAngles.reduce(0, +) / Double(forwardHeadAngles.count)
-        let avgTrunk = trunkLeans.isEmpty ? 0 : trunkLeans.reduce(0, +) / Double(trunkLeans.count)
         let avgConf = Double(totalConf / Float(max(1, capturedPoses.count)))
         
-        // Quality logic
-        let quality: MeasurementQuality
-        if capturedPoses.count < requiredCaptureCount / 2 {
-            quality = .low
-        } else if avgConf > 0.8 {
-            quality = .high
-        } else {
-            quality = .acceptable
+        // 5 saniyelik verinin kırpılmış ortalaması (Trimmed Mean):
+        // Anlık seğirme ve baş oynamalarını filtreler
+        func robustAverageOf(_ values: [Double]) -> Double {
+            guard !values.isEmpty else { return 0.0 }
+            if values.count < 8 {
+                let sorted = values.sorted()
+                return sorted[sorted.count / 2]
+            }
+            let sorted = values.sorted()
+            let trimCount = max(1, Int(Double(sorted.count) * 0.15))
+            let validRange = sorted[trimCount..<(sorted.count - trimCount)]
+            if validRange.isEmpty { return sorted[sorted.count / 2] }
+            return validRange.reduce(0, +) / Double(validRange.count)
         }
         
-        let measurements: [String: MeasurementResult] = [
+        let finalFHP = robustAverageOf(forwardHeadAngles)
+        let finalTrunk = robustAverageOf(trunkLeans)
+        
+        var measurements: [String: MeasurementResult] = [
             "forwardHeadAngle": MeasurementResult(
-                value: avgFHP,
+                value: (finalFHP * 10).rounded() / 10,
                 unit: "°",
                 confidence: avgConf,
-                quality: (avgFHP > 15) ? .acceptable : .high
-            ),
-            "sagittalTrunkLean": MeasurementResult(
-                value: avgTrunk,
-                unit: "°",
-                confidence: avgConf,
-                quality: (avgTrunk > 10) ? .acceptable : .high
+                quality: .high
             )
         ]
+        
+        if !trunkLeans.isEmpty {
+            measurements["sagittalTrunkLean"] = MeasurementResult(
+                value: (finalTrunk * 10).rounded() / 10,
+                unit: "°",
+                confidence: avgConf,
+                quality: .high
+            )
+        }
+        
+        let quality: MeasurementQuality = capturedPoses.count >= minRequiredFrames ? .high : .acceptable
         
         return AssessmentTestResult(
             id: UUID(),

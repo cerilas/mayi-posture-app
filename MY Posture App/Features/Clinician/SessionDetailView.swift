@@ -44,7 +44,7 @@ struct SessionDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 if let patient = session.patient {
-                    ShareLink(item: generatePDF(patient: patient), preview: SharePreview("Rapor", image: Image(systemName: "doc.pdf"))) {
+                    ShareLink(item: generatePDF(patient: patient), preview: SharePreview("Rapor", image: Image(systemName: "doc.text.fill"))) {
                         Label("Paylaş", systemImage: "square.and.arrow.up")
                     }
                 }

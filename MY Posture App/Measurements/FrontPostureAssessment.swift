@@ -1,29 +1,29 @@
 import Foundation
 import CoreGraphics
 
-/// Implementation of the Front Static Posture Assessment.
+/// Implementation of the Front Static Posture Assessment (Fizyoterapist Göz Muayenesi).
 class FrontPostureAssessment: AssessmentModule {
     let id = "front_static_posture"
     let title = "Ön Postür Analizi"
     let instructions = [
-        "Ayaklarınızı işaretlere yerleştirin.",
-        "Kollarınızı serbest bırakın.",
-        "Karşıya bakın.",
-        "Hareket etmeyin."
+        "Kameraya karşı doğal ve dik durun.",
+        "Kollarınızı yanlara serbest bırakın.",
+        "Doğrudan karşıya bakın.",
+        "5 saniye sabit kalın."
     ]
     
     private var capturedPoses: [BodyPose] = []
-    private var trunkLeans: [Double] = []
-    private let requiredCaptureCount = 45 // ~3 seconds at 15fps
+    private let minRequiredFrames = 10
     
     func processPose(_ pose: BodyPose) {
-        // Only process if landmarks are visible enough
-        let required: [BodyJoint.JointName] = [.leftShoulder, .rightShoulder, .leftHip, .rightHip]
-        let isVisible = required.allSatisfy { pose.joint($0) != nil && pose.joint($0)!.confidence > 0.5 }
-        
-        if isVisible {
-            capturedPoses.append(pose)
+        // Ön postürde omuzların görünmesi temel yeterlilik şartıdır
+        guard let leftS = pose.joint(.leftShoulder),
+              let rightS = pose.joint(.rightShoulder),
+              leftS.confidence > 0.25, rightS.confidence > 0.25 else {
+            return
         }
+        
+        capturedPoses.append(pose)
     }
     
     func finish() -> AssessmentTestResult {
@@ -32,70 +32,142 @@ class FrontPostureAssessment: AssessmentModule {
         }
         
         var shoulderAngles: [Double] = []
+        var shoulderSignedDiffs: [Double] = [] // Pozitif = Sağ omuz yüksek, Negatif = Sol omuz yüksek
+        var headTilts: [Double] = []
         var hipAngles: [Double] = []
+        var trunkLeans: [Double] = []
         var totalConf: Float = 0
         
         for pose in capturedPoses {
-            if let leftS = pose.joint(.leftShoulder), let rightS = pose.joint(.rightShoulder),
-               let leftH = pose.joint(.leftHip), let rightH = pose.joint(.rightHip) {
+            guard let leftS = pose.joint(.leftShoulder),
+                  let rightS = pose.joint(.rightShoulder) else { continue }
+            
+            // 1. Omuz Seviyesi (Horizontal Tilt)
+            // iOS koordinat sisteminde Y=0 üsttür.
+            // dy = rightS.position.y - leftS.position.y
+            // Eğer rightS.y < leftS.y ise sağ omuz daha yukarıdadır.
+            let dxS = rightS.position.x - leftS.position.x
+            let dyS = rightS.position.y - leftS.position.y
+            let rawShoulderAngle = atan2(dyS, dxS) * 180 / .pi
+            let shoulderTilt = abs(rawShoulderAngle)
+            shoulderAngles.append(shoulderTilt)
+            shoulderSignedDiffs.append(rawShoulderAngle)
+            
+            // 2. Baş Eğikliği (Head Tilt)
+            // Eğer iki kulak varsa kulaklar arası eğim, yoksa baş-boyun hattı
+            if let leftEar = pose.joint(.leftEar), let rightEar = pose.joint(.rightEar),
+               leftEar.confidence > 0.25, rightEar.confidence > 0.25 {
+                let dxE = rightEar.position.x - leftEar.position.x
+                let dyE = rightEar.position.y - leftEar.position.y
+                let earAngle = abs(atan2(dyE, dxE) * 180 / .pi)
+                // Başın omuzlara göre bağıl eğikliği
+                let relativeHeadTilt = abs(earAngle - shoulderTilt)
+                headTilts.append(relativeHeadTilt)
+            } else if let head = pose.joint(.head), let neck = pose.joint(.neck),
+                      head.confidence > 0.25, neck.confidence > 0.25 {
+                let dxHN = head.position.x - neck.position.x
+                let dyHN = head.position.y - neck.position.y // negatif (baş boyundan yukarıda)
+                let tiltFromVertical = abs(atan2(dxHN, -dyHN) * 180 / .pi)
+                headTilts.append(tiltFromVertical)
+            }
+            
+            // 3. Pelvis ve Gövde Eğimi (Eğer kalçalar kadrajdaysa)
+            if let leftH = pose.joint(.leftHip), let rightH = pose.joint(.rightHip),
+               leftH.confidence > 0.25, rightH.confidence > 0.25 {
+                let dxH = rightH.position.x - leftH.position.x
+                let dyH = rightH.position.y - leftH.position.y
+                let hipTilt = abs(atan2(dyH, dxH) * 180 / .pi)
+                hipAngles.append(hipTilt)
                 
-                // Absolute horizontal tilt angle (always positive)
-                let shoulderAngle = abs(GeometryEngine.horizontalAngle(p1: leftS.position, p2: rightS.position))
-                let hipAngle = abs(GeometryEngine.horizontalAngle(p1: leftH.position, p2: rightH.position))
-                
-                // Trunk lateral lean: angle from vertical (0 = perfectly upright)
-                // Vector from hipMid to shoulderMid, measure deviation from vertical
-                let shoulderMid = CGPoint(x: (leftS.position.x + rightS.position.x) / 2, y: (leftS.position.y + rightS.position.y) / 2)
-                let hipMid = CGPoint(x: (leftH.position.x + rightH.position.x) / 2, y: (leftH.position.y + rightH.position.y) / 2)
-                // dx, dy from hip to shoulder. In iOS coords Y=0 is top, so shoulder Y < hip Y (negative dy)
-                let dx = shoulderMid.x - hipMid.x
-                let dy = shoulderMid.y - hipMid.y // should be negative (shoulder is above hip)
-                // Angle from vertical axis: atan2(|dx|, |dy|) — deviation from upright
-                let trunkLean = atan2(abs(dx), abs(dy)) * 180 / .pi
-                
-                shoulderAngles.append(shoulderAngle)
-                hipAngles.append(hipAngle)
+                let shoulderMid = CGPoint(x: (leftS.position.x + rightS.position.x) / 2,
+                                          y: (leftS.position.y + rightS.position.y) / 2)
+                let hipMid = CGPoint(x: (leftH.position.x + rightH.position.x) / 2,
+                                     y: (leftH.position.y + rightH.position.y) / 2)
+                let dxTrunk = shoulderMid.x - hipMid.x
+                let dyTrunk = shoulderMid.y - hipMid.y
+                let trunkLean = abs(atan2(dxTrunk, -dyTrunk) * 180 / .pi)
                 trunkLeans.append(trunkLean)
             }
+            
             totalConf += pose.confidence
         }
         
-        let avgShoulder = shoulderAngles.isEmpty ? 0 : shoulderAngles.reduce(0, +) / Double(shoulderAngles.count)
-        let avgHip = hipAngles.isEmpty ? 0 : hipAngles.reduce(0, +) / Double(hipAngles.count)
-        let avgTrunk = trunkLeans.isEmpty ? 0 : trunkLeans.reduce(0, +) / Double(trunkLeans.count)
         let avgConf = Double(totalConf / Float(max(1, capturedPoses.count)))
         
-        let measurements: [String: MeasurementResult] = [
+        // 5 saniyelik verinin kırpılmış ortalaması (Trimmed Mean):
+        // En yüksek %15 ve en düşük %15'lik anlık seğirme/sapmaları atar, ortadaki %70'in ortalamasını alır.
+        func robustAverageOf(_ values: [Double]) -> Double {
+            guard !values.isEmpty else { return 0.0 }
+            if values.count < 8 {
+                let sorted = values.sorted()
+                return sorted[sorted.count / 2]
+            }
+            let sorted = values.sorted()
+            let trimCount = max(1, Int(Double(sorted.count) * 0.15))
+            let validRange = sorted[trimCount..<(sorted.count - trimCount)]
+            if validRange.isEmpty { return sorted[sorted.count / 2] }
+            return validRange.reduce(0, +) / Double(validRange.count)
+        }
+        
+        let finalShoulderTilt = robustAverageOf(shoulderAngles)
+        let finalSignedShoulder = robustAverageOf(shoulderSignedDiffs)
+        let finalHeadTilt = robustAverageOf(headTilts)
+        let finalHipTilt = robustAverageOf(hipAngles)
+        let finalTrunkLean = robustAverageOf(trunkLeans)
+        
+        var measurements: [String: MeasurementResult] = [
             "shoulderLevelAngle": MeasurementResult(
-                value: avgShoulder,
+                value: (finalShoulderTilt * 10).rounded() / 10,
                 unit: "°",
                 confidence: avgConf,
-                quality: avgConf > 0.8 ? .high : .acceptable
+                quality: .high
             ),
-            "pelvicLevelAngle": MeasurementResult(
-                value: avgHip,
+            "shoulderSignedAngle": MeasurementResult(
+                value: (finalSignedShoulder * 10).rounded() / 10,
                 unit: "°",
                 confidence: avgConf,
-                quality: avgConf > 0.8 ? .high : .acceptable
-            ),
-            "trunkLateralLean": MeasurementResult(
-                value: avgTrunk,
-                unit: "°",
-                confidence: avgConf,
-                quality: avgConf > 0.8 ? .high : .acceptable
+                quality: .high
             )
         ]
+        
+        if !headTilts.isEmpty {
+            measurements["headTiltAngle"] = MeasurementResult(
+                value: (finalHeadTilt * 10).rounded() / 10,
+                unit: "°",
+                confidence: avgConf,
+                quality: .high
+            )
+        }
+        
+        if !hipAngles.isEmpty {
+            measurements["pelvicLevelAngle"] = MeasurementResult(
+                value: (finalHipTilt * 10).rounded() / 10,
+                unit: "°",
+                confidence: avgConf,
+                quality: .high
+            )
+        }
+        
+        if !trunkLeans.isEmpty {
+            measurements["trunkLateralLean"] = MeasurementResult(
+                value: (finalTrunkLean * 10).rounded() / 10,
+                unit: "°",
+                confidence: avgConf,
+                quality: .high
+            )
+        }
+        
+        let quality: MeasurementQuality = capturedPoses.count >= minRequiredFrames ? .high : .acceptable
         
         return AssessmentTestResult(
             id: UUID(),
             type: id,
             measurements: measurements,
-            overallQuality: capturedPoses.count >= requiredCaptureCount ? .high : .acceptable
+            overallQuality: quality
         )
     }
     
     func reset() {
         capturedPoses.removeAll()
-        trunkLeans.removeAll()
     }
 }
