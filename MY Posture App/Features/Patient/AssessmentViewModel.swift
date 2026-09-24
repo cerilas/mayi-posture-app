@@ -182,7 +182,7 @@ class AssessmentViewModel: ObservableObject {
         // Otomatik Video Kaydı (Ayarlarda açıksa kesintisiz kayıt başlar)
         let ud = UserDefaults.standard
         let shouldRecord = ud.object(forKey: "record_assessment_video") == nil ? true : ud.bool(forKey: "record_assessment_video")
-        if shouldRecord && !cameraService.isRecordingVideo {
+        if shouldRecord {
             cameraService.startVideoRecording()
         }
     }
@@ -693,7 +693,7 @@ class AssessmentViewModel: ObservableObject {
         
         // 1. Video kaydını durdur ve sıkıştır (eğer kayıt açıksa)
         var compressedVideoURL: URL? = nil
-        if cameraService.isRecordingVideo {
+        if cameraService.isRecordingVideo || cameraService.isMovieOutputRecording {
             compressedVideoURL = await withCheckedContinuation { continuation in
                 cameraService.stopVideoRecording { url in
                     continuation.resume(returning: url)

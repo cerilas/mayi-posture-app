@@ -152,13 +152,22 @@ class CameraService: NSObject, ObservableObject {
         return UIImage(cgImage: cgImage)
     }
     
+    var isMovieOutputRecording: Bool {
+        return movieOutput.isRecording
+    }
+    
     // MARK: - Video Recording
     
     private var videoRecordingCompletion: ((URL?) -> Void)?
     
     func startVideoRecording() {
         sessionQueue.async {
-            guard !self.movieOutput.isRecording else { return }
+            if self.movieOutput.isRecording {
+                print("[CameraService] movieOutput is already recording, stopping previous recording first")
+                self.movieOutput.stopRecording()
+                // Kısa bir bekleme verip yeni kaydı başlatıyoruz
+                Thread.sleep(forTimeInterval: 0.2)
+            }
             
             // Set rotation for video recording
             if let connection = self.movieOutput.connection(with: .video) {
@@ -175,13 +184,18 @@ class CameraService: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 self.isRecordingVideo = true
             }
+            print("[CameraService] Started video recording to: \(fileName)")
         }
     }
     
     func stopVideoRecording(completion: @escaping (URL?) -> Void) {
         sessionQueue.async {
             guard self.movieOutput.isRecording else {
-                DispatchQueue.main.async { completion(nil) }
+                print("[CameraService] stopVideoRecording called but movieOutput was not recording")
+                DispatchQueue.main.async {
+                    self.isRecordingVideo = false
+                    completion(nil)
+                }
                 return
             }
             self.videoRecordingCompletion = completion
